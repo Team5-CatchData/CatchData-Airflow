@@ -65,9 +65,9 @@ def diagnose():
         print("\nJupyter 정보 (비교용):")
         print("  Database: dev")
         print("  Schema: jaehyeon (존재)")
-        print(f"\nAirflow 정보:")
+        print("\nAirflow 정보:")
         print(f"  Database: {result[0][0]}")
-        print(f"  Schema: jaehyeon (없음)")
+        print("  Schema: jaehyeon (없음)")
         
     print("\n" + "=" * 70)
     print("5. 모든 테이블 검색 (restaurant_airflow 찾기)")
@@ -94,12 +94,12 @@ def diagnose():
     
     if result[0][0] != 'dev':
         print(f"❌ 문제: Airflow가 '{result[0][0]}' database에 연결됨")
-        print(f"   Jupyter는 'dev' database 사용 중")
-        print(f"\n해결: Connection의 Database 필드를 'dev'로 변경")
+        print("   Jupyter는 'dev' database 사용 중")
+        print("\n해결: Connection의 Database 필드를 'dev'로 변경")
     elif not jaehyeon_exists:
-        print(f"❌ 문제: Database는 맞는데 jaehyeon 스키마가 없음")
-        print(f"   Airflow와 Jupyter가 다른 Redshift 클러스터를 보고 있을 가능성")
-        print(f"\n해결: Connection의 Host가 정확한지 다시 확인")
+        print("❌ 문제: Database는 맞는데 jaehyeon 스키마가 없음")
+        print("   Airflow와 Jupyter가 다른 Redshift 클러스터를 보고 있을 가능성")
+        print("\n해결: Connection의 Host가 정확한지 다시 확인")
         print(f"   현재 Host: {conn.host}")
     else:
         print("✓ 모든 설정이 정상입니다!")
