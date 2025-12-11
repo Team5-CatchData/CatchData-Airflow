@@ -23,6 +23,7 @@ Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 
 # 4. Installing docker
+# 여기서의 apt 업데이트는 새로 추가한 docker repository 정보를 반영하기 위함
 sudo apt update
 sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
 
