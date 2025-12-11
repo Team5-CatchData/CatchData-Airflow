@@ -47,7 +47,7 @@ cat > Dockerfile <<'EOF'
 FROM apache/airflow:3.1.2
 USER airflow
 RUN pip install --no-cache-dir \
-    psycopg2-binary=2.9.9 \
+    psycopg2-binary==2.9.9 \
     dbt-core \
     dbt-postgres \
     dbt-redshift
