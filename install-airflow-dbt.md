@@ -64,7 +64,7 @@ GitHub 저장소 Settings → Secrets and variables → Actions에서 다음 Sec
 ### 3.1 선행 작업
 
 ```bash
-git clone https://github.com/zhfem05-star/port-airflow
+git clone https://github.com/zhfem05-star/CatchData-Airflow
 ```
 
 ### 3.2 설치 스크립트 권한 설정
