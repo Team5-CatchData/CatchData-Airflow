@@ -1,5 +1,4 @@
 import time
-import json
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
@@ -21,7 +20,6 @@ from datetime import datetime
 # ============================
 def create_driver():
     chrome_options = Options()
-    chrome_options.binary_location = "/opt/chrome/chrome" 
     chrome_options.add_argument("--window-size=1920,1080")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
