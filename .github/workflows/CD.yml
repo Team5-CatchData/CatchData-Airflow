@@ -14,6 +14,8 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.AIRFLOW_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.BASTION_HOST_PUBLIC_IP }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.AIRFLOW_EC2_PRIVATE_IP }} >> ~/.ssh/known_hosts
       - name: Deploy to Airflow EC2
         run: |
           ssh -o StrictHostKeyChecking=no \
