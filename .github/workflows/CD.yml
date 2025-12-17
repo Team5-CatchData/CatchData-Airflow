@@ -14,10 +14,9 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.AIRFLOW_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          
       - name: Deploy to Airflow EC2
         run: |
           ssh -o StrictHostKeyChecking=no \
               -J ec2-user@${{ secrets.BASTION_HOST_PUBLIC_IP }} \
-              ec2-user@${{ secrets.AIRFLOW_EC2_PRIVATE_IP }} \
+              ubuntu@${{ secrets.AIRFLOW_EC2_PRIVATE_IP }} \
               'cd /opt/airflow && git pull origin main'
