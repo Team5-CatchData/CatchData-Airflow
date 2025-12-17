@@ -9,19 +9,20 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Setup SSH Key
-        run: |
-      - name: Setup SSH Key
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.AIRFLOW_SSH_PRIVATE_KEY }}
+      
+      - name: Add SSH known hosts
         run: |
           mkdir -p ~/.ssh
-          printf "%s\n" "${{ secrets.AIRFLOW_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.BASTION_HOST_PUBLIC_IP }} >> ~/.ssh/known_hosts
-          ssh-keyscan -H ${{ secrets.AIRFLOW_EC2_PRIVATE_IP }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.BASTION_HOST_PUBLIC_IP }} >> ~/.ssh/known_hosts 2>/dev/null || true
           
       - name: Deploy to Airflow EC2
         run: |
           ssh -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
               -J ec2-user@${{ secrets.BASTION_HOST_PUBLIC_IP }} \
               ubuntu@${{ secrets.AIRFLOW_EC2_PRIVATE_IP }} \
               'cd /opt/airflow && git pull origin main'
