@@ -30,8 +30,7 @@ sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin dock
 # Installing Airflow with DBT
 
 # 1. Create project directory
-mkdir CatchData-airflow
-cd CatchData-airflow
+cd catchdata-airflow
 
 # 2. Download Airflow docker-compose.yaml
 curl -LfO 'https://airflow.apache.org/docs/apache-airflow/3.1.2/docker-compose.yaml'
