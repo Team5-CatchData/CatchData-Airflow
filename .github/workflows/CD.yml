@@ -1,4 +1,4 @@
-name: Deploy DAGs via GitActions
+name: Deploy to Airflow via Git Pull
 
 on:
   push:
@@ -7,16 +7,17 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Deploy EC2 via GitActions
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.airflow_EC2_PUBLIC_IP }}
-          username: ubuntu
-          key: ${{ secrets.airflow_SSH_PRIVATE_KEY }}
-          port: 22
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AIRFLOW_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
           
-          script: |
-            cd /home/ubuntu/catchdata-airflow
-            git fetch
-            git pull
+      - name: Deploy to Airflow EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+              -J ec2-user@${{ secrets.BASTION_HOST_PUBLIC_IP }} \
+              ec2-user@${{ secrets.AIRFLOW_EC2_PRIVATE_IP }} \
+              'cd /opt/airflow && git pull origin main'
