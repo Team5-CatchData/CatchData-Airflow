@@ -7,8 +7,11 @@ from datetime import datetime, timedelta, timezone
 import boto3
 import pandas as pd
 import requests
+
 from airflow import DAG
+from airflow.models import Variable
 from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 # ChromeDriver 다운로드 Lock (동시 다운로드 방지)
 _driver_lock = threading.Lock()
@@ -17,15 +20,15 @@ _driver_lock = threading.Lock()
 # =========================
 #  기본 설정
 # =========================
-AWS_ACCESS_KEY = ""
-AWS_SECRET_KEY = ""
-REST_API_KEY = ""
+
+REST_API_KEY = Variable.get("KAKAO_REST_API_KEY")
 
 KST = timezone(timedelta(hours=9))
 time_stamp = datetime.now(KST).strftime("%Y%m%d")
-BUCKET_NAME = "427paul-test-bucket"
-OUTPUT_KEY = f"kakao_crawl/eating_house_{time_stamp}.csv"
+BUCKET_NAME = "team5-batch"
+OUTPUT_KEY = f"raw_data/kakao/eating_house_{time_stamp}.csv"
 
+CRAWL_WORKERS = int(Variable.get("CRAWL_WORKERS", default_var=2))
 
 # =========================
 # 크롤링 함수
@@ -288,11 +291,7 @@ def run_all_tasks(**context):
     print("☁️ TASK 3 시작: S3에 결과 업로드")
     print("=" * 60)
 
-    s3 = boto3.client(
-        "s3",
-        aws_access_key_id=AWS_ACCESS_KEY,
-        aws_secret_access_key=AWS_SECRET_KEY
-    )
+    s3 = boto3.client("s3")
 
     # UTF-8 BOM 추가로 한글 깨짐 방지 (Excel에서도 정상 표시)
     csv_buffer = final_df.to_csv(index=False, encoding='utf-8-sig')
@@ -319,7 +318,7 @@ def run_all_tasks(**context):
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 default_args = {
-    "owner": "규영",
+    "owner": "team5",
     "email_on_failure": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=2)

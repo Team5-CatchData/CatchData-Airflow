@@ -1,29 +1,27 @@
 from datetime import datetime, timedelta, timezone
-
+from airflow.hooks.base import BaseHook
 import psycopg2
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-REDSHIFT_HOST = ""
-REDSHIFT_PORT = 5439
-REDSHIFT_USER = ""
-REDSHIFT_PASSWORD = ""
-REDSHIFT_DB = "dev"
+
+
 KST = timezone(timedelta(hours=9))
 time_stamp = datetime.now(KST).strftime("%Y%m%d")
 
-S3_BUCKET = "427paul-test-bucket"
-S3_KAKAO_INFO = f"kakao_crawl/eating_house_{time_stamp}.csv"
-S3_KAKAO_IMG = f"kakao_img_url/eating_house_img_url_{time_stamp}.csv"
-TARGET_TABLE_INFO = "raw_data.kakao_crawl"
+# S3_BUCKET = "team5-batch"
+# S3_KAKAO_INFO = f"kakao_crawl/eating_house_{time_stamp}.csv"
+# S3_KAKAO_IMG = f"kakao_img_url/eating_house_img_url_{time_stamp}.csv"
+# TARGET_TABLE_INFO = "raw_data.kakao_crawl"
 
 
 def load_s3_to_redshift():
     time_stamp = datetime.now().strftime("%Y%m%d")
+    conn_info = BaseHook.get_connection("redshift_conn")
 
     COPY_SQL = f"""
     COPY raw_data.kakao_crawl_stg
-    FROM 's3://427paul-test-bucket/kakao_crawl/eating_house_{time_stamp}.csv'
+    FROM 's3://team5-batch/kakao/eating_house_{time_stamp}.csv'
     credentials ''
     delimiter ','
     IGNOREHEADER 1
@@ -43,11 +41,11 @@ def load_s3_to_redshift():
     """
 
     conn = psycopg2.connect(
-        host=REDSHIFT_HOST,
-        port=REDSHIFT_PORT,
-        user=REDSHIFT_USER,
-        password=REDSHIFT_PASSWORD,
-        dbname=REDSHIFT_DB
+        host=conn_info.host,
+        port=conn_info.port,
+        user=conn_info.login,
+        password=conn_info.password,
+        dbname=conn_info.schema,
     )
     cur = conn.cursor()
 
@@ -76,7 +74,7 @@ def load_s3_to_redshift():
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 default_args = {
-    "owner": "규영",
+    "owner": "team5",
     "retries": 1,
     "retry_delay": timedelta(minutes=2)
 }
