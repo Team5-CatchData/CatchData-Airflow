@@ -14,8 +14,4 @@ with DAG(
     def hello():
         print("✅ Airflow DAG is working properly!")
 
-    @task
-    @task
-    def mello():
-        print("✅ Airflow DAG is working well!")
     hello()
