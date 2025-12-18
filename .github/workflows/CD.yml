@@ -25,4 +25,4 @@ jobs:
               -o UserKnownHostsFile=/dev/null \
               -J ec2-user@${{ secrets.BASTION_HOST_PUBLIC_IP }} \
               ubuntu@${{ secrets.AIRFLOW_EC2_PRIVATE_IP }} \
-              'cd /opt/airflow && git pull origin main'
+              'cd /home/ubuntu/CatchData-Airflow && git pull origin main'
