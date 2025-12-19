@@ -3,9 +3,9 @@ from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.sensors.external_task import ExternalTaskSensor
+# from airflow.sensors.external_task import ExternalTaskSensor
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.utils.state import DagRunState
+# from airflow.utils.state import DagRunState
 
 
 def transfer_redshift_to_rds(**context):
@@ -87,23 +87,23 @@ with DAG(
     dag_id='redshift_to_rds_transfer',
     default_args=default_args,
     description='Redshift → RDS 데이터 전송 (UPSERT 방식)',
-    schedule='30 3 * * 1',  # 매주 월요일 새벽 3시 30분
+    schedule_interval='30 3 * * 1',  # 매주 월요일 새벽 3시 30분
     catchup=False,
     tags=['redshift', 'rds', 'upsert'],
 ) as dag:
     
-    # 상위 DAG 완료 대기
-    wait_for_pipeline = ExternalTaskSensor(
-        task_id='wait_for_redshift_pipeline',
-        external_dag_id='redshift_map_search_update_pipeline',
-        external_task_id=None,  # DAG 전체 완료 대기
-        allowed_states=[DagRunState.SUCCESS],
-        failed_states=[DagRunState.FAILED],
-        execution_delta=timedelta(hours=0),
-        poke_interval=60,
-        timeout=3600,
-        mode='poke',
-    )
+    # # 상위 DAG 완료 대기
+    # wait_for_pipeline = ExternalTaskSensor(
+    #     task_id='wait_for_redshift_pipeline',
+    #     external_dag_id='redshift_map_search_update_pipeline',
+    #     external_task_id=None,  # DAG 전체 완료 대기
+    #     allowed_states=[DagRunState.SUCCESS],
+    #     failed_states=[DagRunState.FAILED],
+    #     execution_delta=timedelta(hours=0),
+    #     poke_interval=60,
+    #     timeout=3600,
+    #     mode='poke',
+    # )
     
     # 데이터 전송
     transfer_task = PythonOperator(
@@ -112,4 +112,4 @@ with DAG(
     )
     
     # 의존성
-    wait_for_pipeline >> transfer_task
+    transfer_task
