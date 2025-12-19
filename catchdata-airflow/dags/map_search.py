@@ -5,7 +5,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from sqlalchemy import Numeric, String
+from sqlalchemy import Numeric, String, Integer
 
 # =========================
 # 기본 설정
@@ -22,6 +22,7 @@ FINAL_TABLE_NAME = "map_search"
 # SQL 문법 오류(콤마) 수정 및 VARCHAR 길이 최적화
 FINAL_TABLE_CREATE_SQL = f"""
 CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.{FINAL_TABLE_NAME} (
+    id INTEGER,
     name VARCHAR(50),
     region VARCHAR(50),
     city VARCHAR(50),
@@ -53,6 +54,7 @@ def full_static_feature_pipeline():
     print("--- 1. Redshift에서 원본 데이터 로드 시작 ---")
     sql_select = f"""
     SELECT 
+        A.id,
         A.place_name as name,
         A.address_name as address,
         A.category_name,  -- 원본 카테고리 로드
@@ -91,7 +93,7 @@ def full_static_feature_pipeline():
     df['city'] = address_split[1]
 
     # 2-3. 최종 테이블 컬럼 순서 및 구성 확정
-    final_df = df[['name', 'region', 'city', 'category', 'x', 'y', 
+    final_df = df[['id', 'name', 'region', 'city', 'category', 'x', 'y', 
                    'waiting', 'rating', 'phone', 'image_url', 'address',
                    'rec_quality', 'rec_balanced', 'rec_convenience']].copy()
 
@@ -104,6 +106,7 @@ def full_static_feature_pipeline():
     # 3-1. Staging 테이블에 로드
     # 데이터 타입을 명시적으로 지정하여 Redshift 스키마와 일치시킴
     dtype_mapping = {
+        'id': Integer(),
         'x': Numeric(15, 12),
         'y': Numeric(15, 12),
         'rating': Numeric(3, 1),
