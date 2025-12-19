@@ -23,6 +23,7 @@ def transfer_redshift_to_rds(**context):
             rec_quality, rec_balanced, rec_convenience
         FROM analytics.map_search
         ORDER BY id
+        LIMIT 10
     """
     
     records = redshift_hook.get_records(sql)
