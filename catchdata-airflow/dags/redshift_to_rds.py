@@ -5,7 +5,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.sensors.external_task import ExternalTaskSensor
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.utils.state import DagRunState  # ⭐ 추가!
+from airflow.utils.state import DagRunState
 
 
 def transfer_redshift_to_rds(**context):
