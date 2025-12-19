@@ -20,7 +20,6 @@ def load_s3_to_redshift():
     CSV
     delimiter ','
     IGNOREHEADER 1
-    removequotes;
     """
 
     SWAP_SQL = """
