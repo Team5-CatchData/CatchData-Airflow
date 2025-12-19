@@ -71,7 +71,7 @@ with DAG(
     dag_id='redshift_to_rds_transfer',
     default_args=default_args,
     description='Redshift → RDS 데이터 전송 (Sensor 방식)',
-    schedule_interval='30 3 * * 1',  # 매주 월요일 새벽 3시 30분
+    schedule='30 3 * * 1',  # 매주 월요일 새벽 3시 30분
     catchup=False,
     tags=['redshift', 'rds', 'dependent'],
 ) as dag:
