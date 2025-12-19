@@ -21,7 +21,7 @@ def transfer_redshift_to_rds(**context):
             id, name, region, city, category, rating, 
             phone, x, y, image_url, address,
             rec_quality, rec_balanced, rec_convenience
-        FROM jaehyeon.restaurant_airflow
+        FROM analytics.map_search
         ORDER BY id
     """
     
