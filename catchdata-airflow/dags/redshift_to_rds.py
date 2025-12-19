@@ -5,10 +5,11 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.sensors.external_task import ExternalTaskSensor
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.utils.state import DagRunState  # ⭐ 추가!
 
 
 def transfer_redshift_to_rds(**context):
-    """Redshift → RDS 전송 (executemany 방식)"""
+    """Redshift → RDS 전송 (UPSERT 방식)"""
     
     redshift_hook = PostgresHook(postgres_conn_id="redshift_conn")
     rds_hook = PostgresHook(postgres_conn_id="rds_conn")
@@ -26,14 +27,14 @@ def transfer_redshift_to_rds(**context):
     
     records = redshift_hook.get_records(sql)
     record_count = len(records)
-    logging.info(f"V {record_count:,}개 추출 완료")
+    logging.info(f"✓ {record_count:,}개 추출 완료")
     
     if not records:
         logging.warning("추출된 데이터가 없습니다")
         return
     
-    # 2. RDS에 배치 INSERT
-    logging.info(f"2. RDS 배치 INSERT 시작 ({record_count:,}개)")
+    # 2. RDS에 UPSERT
+    logging.info(f"2. RDS UPSERT 시작 ({record_count:,}개)")
     
     conn = rds_hook.get_conn()
     cursor = conn.cursor()
@@ -44,14 +45,29 @@ def transfer_redshift_to_rds(**context):
                 id, name, region, city, category, rating, phone, x, y,
                 image_url, address, rec_quality, rec_balanced, rec_convenience
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) 
+            DO UPDATE SET
+                name = EXCLUDED.name,
+                region = EXCLUDED.region,
+                city = EXCLUDED.city,
+                category = EXCLUDED.category,
+                rating = EXCLUDED.rating,
+                phone = EXCLUDED.phone,
+                x = EXCLUDED.x,
+                y = EXCLUDED.y,
+                image_url = EXCLUDED.image_url,
+                address = EXCLUDED.address,
+                rec_quality = EXCLUDED.rec_quality,
+                rec_balanced = EXCLUDED.rec_balanced,
+                rec_convenience = EXCLUDED.rec_convenience
         """, records)
         
         conn.commit()
-        logging.info(f"V {record_count:,}개 적재 완료!")
+        logging.info(f"✓ {record_count:,}개 UPSERT 완료!")
         
     except Exception as e:
         conn.rollback()
-        logging.error(f"X 적재 실패: {e}")
+        logging.error(f"✗ UPSERT 실패: {e}")
         raise
     finally:
         cursor.close()
@@ -70,10 +86,10 @@ default_args = {
 with DAG(
     dag_id='redshift_to_rds_transfer',
     default_args=default_args,
-    description='Redshift → RDS 데이터 전송 (Sensor 방식)',
+    description='Redshift → RDS 데이터 전송 (UPSERT 방식)',
     schedule_interval='30 3 * * 1',  # 매주 월요일 새벽 3시 30분
     catchup=False,
-    tags=['redshift', 'rds', 'dependent'],
+    tags=['redshift', 'rds', 'upsert'],
 ) as dag:
     
     # 상위 DAG 완료 대기
@@ -81,11 +97,11 @@ with DAG(
         task_id='wait_for_redshift_pipeline',
         external_dag_id='redshift_map_search_update_pipeline',
         external_task_id=None,  # DAG 전체 완료 대기
-        allowed_states=['success'],
-        failed_states=['failed', 'skipped'],
-        execution_delta=timedelta(hours=0),  # 같은 execution_date
-        poke_interval=60,  # 60초마다 체크
-        timeout=3600,  # 1시간 타임아웃
+        allowed_states=[DagRunState.SUCCESS],
+        failed_states=[DagRunState.FAILED],
+        execution_delta=timedelta(hours=0),
+        poke_interval=60,
+        timeout=3600,
         mode='poke',
     )
     
