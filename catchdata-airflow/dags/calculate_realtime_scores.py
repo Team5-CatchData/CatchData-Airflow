@@ -2,6 +2,7 @@ import random
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
+import requests
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
@@ -17,6 +18,8 @@ SCHEMA_NAME = "analytics"
 BASE_TABLE = f"{SCHEMA_NAME}.derived_features_base"
 REALTIME_TABLE = f"{SCHEMA_NAME}.realtime_waiting"
 FINAL_TABLE_NAME = "realtime_waiting"
+SLACK_WEBHOOK_URL = ("https://hooks.slack.com/services/T09SZ0BSHEU"
+                     "/B0A3W3R4H9D/Ea5DqrFBnQKc3SzbSuNhcmZo")
 
 # ── 추천 전략 가중치 ─────────────────
 QUALITY_W1, QUALITY_W2, QUALITY_W3 = 0.6, 0.2, 0.2
@@ -29,7 +32,7 @@ CONVENIENCE_W1, CONVENIENCE_W2, CONVENIENCE_W3 = 0.3, 0.2, 0.5
 # =========================
 REALTIME_TABLE_CREATE_SQL = f"""
 CREATE TABLE IF NOT EXISTS {REALTIME_TABLE} (
-    id VARCHAR(256) PRIMARY KEY,
+    id BIGINT,
     current_visitors NUMERIC(18, 4),
     waiting INTEGER,
     rec_quality NUMERIC(18, 6),
@@ -162,8 +165,15 @@ def calculate_realtime_scores():
 
     redshift_hook.run(sql_commands)
 
-    print(f"✅ realtime_waiting UPSERT 완료: {len(final_df)} rows")
+    print("*calculate_realtime_scores.py*\n"
+          f"✅ realtime_waiting UPSERT 완료: {len(final_df)} rows")
+    payload = {"text": (f"📌 *✅ realtime_waiting UPSERT 완료: {len(final_df)} rows*\n")}
 
+    requests.post(
+        SLACK_WEBHOOK_URL,
+        json=payload,
+        timeout=10,
+    )
 
 # =========================
 # DAG 정의
@@ -176,7 +186,7 @@ default_args = {
 }
 
 with DAG(
-    dag_id="realtime_score_prediction_pipeline_optimized",
+    dag_id="calculate_realtime_scores",
     default_args=default_args,
     schedule=None,  # 또는 원하는 주기
     catchup=False,
@@ -196,7 +206,7 @@ with DAG(
     # 💡 추가: 다음 DAG를 실행시키는 태스크
     t2_trigger_map_search = TriggerDagRunOperator(
         task_id="trigger_map_search_dag",
-        trigger_dag_id="redshift_map_search_update_pipeline", # 실행시키고자 하는 상대 DAG의 dag_id
+        trigger_dag_id="map_search", # 실행시키고자 하는 상대 DAG의 dag_id
         wait_for_completion=False, # 이 DAG가 상대방이 끝날 때까지 기다릴지 여부
         poke_interval=60
     )
