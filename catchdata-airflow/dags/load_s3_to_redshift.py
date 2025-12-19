@@ -9,20 +9,15 @@ from airflow.operators.python import PythonOperator
 KST = timezone(timedelta(hours=9))
 time_stamp = datetime.now(KST).strftime("%Y%m%d")
 
-# S3_BUCKET = "team5-batch"
-# S3_KAKAO_INFO = f"kakao_crawl/eating_house_{time_stamp}.csv"
-# S3_KAKAO_IMG = f"kakao_img_url/eating_house_img_url_{time_stamp}.csv"
-# TARGET_TABLE_INFO = "raw_data.kakao_crawl"
-
-
 def load_s3_to_redshift():
     time_stamp = datetime.now().strftime("%Y%m%d")
     conn_info = BaseHook.get_connection("redshift_conn")
 
     COPY_SQL = f"""
     COPY raw_data.kakao_crawl_stg
-    FROM 's3://team5-batch/kakao/eating_house_{time_stamp}.csv'
-    credentials ''
+    FROM 's3://team5-batch/kakao/eating_house_{time_stamp}.csv' 
+    IAM_ROLE 'arn:aws:iam::903836366474:role/redshift.read.s3'
+    CSV
     delimiter ','
     IGNOREHEADER 1
     removequotes;
