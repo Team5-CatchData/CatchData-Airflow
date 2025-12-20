@@ -189,12 +189,13 @@ def transfer_redshift_to_rds(**context):
                 phone,              -- 7 ← Redshift phone
                 x,                  -- 8 ← Redshift x
                 y,                  -- 9 ← Redshift y
-                image_url,          -- 10 ← Redshift image_url
-                address,            -- 11 ← Redshift address
-                rec_quality,        -- 12 ← Redshift rec_quality
-                rec_balanced,       -- 13 ← Redshift rec_balanced
-                rec_convenience     -- 14 ← Redshift rec_convenience
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                waiting,            -- 10 ← Redshift waiting
+                image_url,          -- 11 ← Redshift image_url
+                address,            -- 12 ← Redshift address
+                rec_quality,        -- 13 ← Redshift rec_quality
+                rec_balanced,       -- 14 ← Redshift rec_balanced
+                rec_convenience     -- 15 ← Redshift rec_convenience
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT ("restaurant_ID")
             DO UPDATE SET
                 name = EXCLUDED.name,
@@ -205,6 +206,7 @@ def transfer_redshift_to_rds(**context):
                 phone = EXCLUDED.phone,
                 x = EXCLUDED.x,
                 y = EXCLUDED.y,
+                waitting = EXCLUDED.waitting,
                 image_url = EXCLUDED.image_url,
                 address = EXCLUDED.address,
                 rec_quality = EXCLUDED.rec_quality,
