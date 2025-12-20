@@ -3,6 +3,7 @@ import math
 from datetime import datetime, timedelta
 
 import pandas as pd
+import requests
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.common.sql.operators.sql import (
@@ -19,6 +20,9 @@ SCHEMA_NAME = "analytics"
 RAW_TABLE = "raw_data.kakao_crawl"
 FINAL_TABLE_NAME = "derived_features_base"
 
+SLACK_WEBHOOK_URL = ("https://hooks.slack.com/services/T09SZ0BSHEU"
+                     "/B0A3W3R4H9D/Ea5DqrFBnQKc3SzbSuNhcmZo")
+
 # 가중치 설정 (base_population 계산용)
 W_REVIEW = 1.0
 W_BLOG = 0.7
@@ -32,7 +36,7 @@ TIME_COLUMNS = [f'time{i}' for i in range(24)]
 # Redshift에 최적화된 테이블 스키마 정의
 FINAL_TABLE_CREATE_SQL = f"""
 CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.{FINAL_TABLE_NAME} (
-    id VARCHAR(256) PRIMARY KEY,
+    id BIGINT PRIMARY KEY,
     base_population NUMERIC(18, 4),
     quality_score NUMERIC(18, 4),
     rating NUMERIC(3, 2),
@@ -151,7 +155,6 @@ def full_static_feature_pipeline():
 
     print(f"   -> Staging 테이블 로드 완료: {SCHEMA_NAME}.{STAGING_TABLE}")
 
-
     # 3-2. Redshift 트랜잭션 시작 및 테이블 이름 교체 실행
     sql_commands = f"""
     BEGIN;
@@ -172,7 +175,14 @@ def full_static_feature_pipeline():
     redshift_hook.run(sql_commands)
 
     print(f"✅ {SCHEMA_NAME}.{FINAL_TABLE_NAME} 테이블이 {len(final_df)}개 레코드로 서비스 중단 없이 갱신되었습니다.")
+    payload = {"text": ("*redshift_static_feature_update.py*\n"
+                        f"📌 ✅ {SCHEMA_NAME}.{FINAL_TABLE_NAME} 테이블이 {len(final_df)}개 레코드로 서비스 중단 없이 갱신되었습니다.\n")}
 
+    requests.post(
+        SLACK_WEBHOOK_URL,
+        json=payload,
+        timeout=10,
+    )
 
 # =========================
 # DAG 정의

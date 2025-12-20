@@ -1,25 +1,38 @@
 from datetime import datetime, timedelta, timezone
-from airflow.hooks.base import BaseHook
+
 import psycopg2
+import requests
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-
-
+REDSHIFT_HOST = "default-workgroup.903836366474.ap-northeast-2.redshift-serverless.amazonaws.com"
+REDSHIFT_PORT = 5439
+REDSHIFT_USER = "dev_admin"
+REDSHIFT_PASSWORD = "StrongPassword123!"
+REDSHIFT_DB = "dev"
 KST = timezone(timedelta(hours=9))
-time_stamp = datetime.now(KST).strftime("%Y%m%d")
+# time_stamp = datetime.now(KST).strftime("%Y%m%d")
+time_stamp = "20251219"
+S3_BUCKET = "427paul-test-bucket"
+S3_KAKAO_INFO = f"kakao_crawl/eating_house_{time_stamp}.csv"
+S3_KAKAO_IMG = f"kakao_img_url/eating_house_img_url_{time_stamp}.csv"
+TARGET_TABLE_INFO = "raw_data.kakao_crawl"
+
+SLACK_WEBHOOK_URL = ("https://hooks.slack.com/services/T09SZ0BSHEU"
+                     "/B0A3W3R4H9D/Ea5DqrFBnQKc3SzbSuNhcmZo")
+
 
 def load_s3_to_redshift():
     time_stamp = datetime.now().strftime("%Y%m%d")
-    conn_info = BaseHook.get_connection("redshift_conn")
 
     COPY_SQL = f"""
     COPY raw_data.kakao_crawl_stg
-    FROM 's3://team5-batch/raw_data/kakao/eating_house_{time_stamp}.csv' 
-    IAM_ROLE 'arn:aws:iam::903836366474:role/redshift.read.s3'
-    CSV
-    REGION 'ap-northeast-2'
+    FROM 's3://427paul-test-bucket/kakao_crawl/eating_house_{time_stamp}.csv'
+    REGION 'ap-southeast-2'
+    credentials 'aws_iam_role=arn:aws:iam::903836366474:role/redshift.read.s3'
+    delimiter ','
     IGNOREHEADER 1
+    removequotes;
     """
 
     SWAP_SQL = """
@@ -35,11 +48,11 @@ def load_s3_to_redshift():
     """
 
     conn = psycopg2.connect(
-        host=conn_info.host,
-        port=conn_info.port,
-        user=conn_info.login,
-        password=conn_info.password,
-        dbname=conn_info.schema,
+        host=REDSHIFT_HOST,
+        port=REDSHIFT_PORT,
+        user=REDSHIFT_USER,
+        password=REDSHIFT_PASSWORD,
+        dbname=REDSHIFT_DB
     )
     cur = conn.cursor()
 
@@ -55,6 +68,15 @@ def load_s3_to_redshift():
 
         conn.commit()
         print("✅ 데이터 교체 완료")
+        
+        payload = {"text": (f"*load_s3_to_redshift.py*\n"
+                            "📌 S3 데이터 {S3_KAKAO_INFO} 데이터 -> Redshift {TARGET_TABLE_INFO} 적재 완료\n")}
+
+        requests.post(
+            SLACK_WEBHOOK_URL,
+            json=payload,
+            timeout=10,
+        )
 
     except Exception as e:
         conn.rollback()
@@ -68,7 +90,7 @@ def load_s3_to_redshift():
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 default_args = {
-    "owner": "team5",
+    "owner": "규영",
     "retries": 1,
     "retry_delay": timedelta(minutes=2)
 }
@@ -95,3 +117,4 @@ with DAG(
     )
 
     load_task >> trigger_static_feature_dag
+

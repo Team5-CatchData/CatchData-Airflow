@@ -7,11 +7,8 @@ from datetime import datetime, timedelta, timezone
 import boto3
 import pandas as pd
 import requests
-
 from airflow import DAG
-from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 # ChromeDriver 다운로드 Lock (동시 다운로드 방지)
 _driver_lock = threading.Lock()
@@ -20,15 +17,14 @@ _driver_lock = threading.Lock()
 # =========================
 #  기본 설정
 # =========================
-
-REST_API_KEY = Variable.get("KAKAO_REST_API_KEY")
-
+REST_API_KEY = "aca346161a0e403cc7a59fefcae5c831"
+SLACK_WEBHOOK_URL = ("https://hooks.slack.com/services/T09SZ0BSHEU"
+                     "/B0A3W3R4H9D/Ea5DqrFBnQKc3SzbSuNhcmZo")
 KST = timezone(timedelta(hours=9))
 time_stamp = datetime.now(KST).strftime("%Y%m%d")
-BUCKET_NAME = "team5-batch"
-OUTPUT_KEY = f"raw_data/kakao/eating_house_{time_stamp}.csv"
+BUCKET_NAME = "427paul-test-bucket"
+OUTPUT_KEY = f"kakao_crawl/eating_house_{time_stamp}.csv"
 
-CRAWL_WORKERS = int(Variable.get("CRAWL_WORKERS", default_var=2))
 
 # =========================
 # 크롤링 함수
@@ -181,7 +177,7 @@ def run_all_tasks(**context):
     all_results = []
 
     query = "홍대 음식점"
-    for page in range(1, 2):
+    for page in range(1, 3):
         params = {
             "query": query,
             "size": 15,
@@ -199,7 +195,7 @@ def run_all_tasks(**context):
 
     query = "대치동 음식점"
 
-    for page in range(1, 2):
+    for page in range(1, 3):
         params = {
             "query": query,
             "size": 15,
@@ -223,11 +219,28 @@ def run_all_tasks(**context):
 
     # 음식점만 (FD6)
     df = df[df["category_group_code"] == "FD6"]
+    
+    # full_static_feature_pipeline 함수 내부에서 df 로드 직후 실행
+    before_drop = len(df)
+    print(f"전처리 전 데이터 수: {before_drop}")
 
-    print(f"✅ TASK 1 완료: 총 {len(df)}개 음식점 목록 수집 완료")
+    # id를 기준으로 중복 제거 (첫 번째 데이터만 남김)
+    df = df.drop_duplicates(subset=['id'], keep='first')
+    after_drop = len(df)
+    print(f"전처리 후 데이터 수: {after_drop}")
+
+    print(f"✅ TASK 1 완료: 총 {after_drop}개 음식점 목록 수집 완료")
     print("=" * 60)
     print()
-
+    
+    payload = {"text": (f"📌 *kakao_crawl_all_on_one.py*\n"
+                        f"총 {before_drop}개 음식점 중 전처리 후 {after_drop} 목록 수집 완료*\n")}
+    requests.post(
+        SLACK_WEBHOOK_URL,
+        json=payload,
+        timeout=10,
+    )
+    
     # ========================================
     # TASK 2: 병렬 크롤링으로 상세 정보 수집
     # ========================================
@@ -278,6 +291,22 @@ def run_all_tasks(**context):
     df = df.drop(columns=["distance", "place_url"], errors="ignore")
 
     final_df = pd.concat([df.reset_index(drop=True), pd.DataFrame(results)], axis=1)
+    before_drop = len(final_df)
+    
+    # id를 기준으로 중복 제거 (첫 번째 데이터만 남김)
+    final_df = final_df.drop_duplicates(subset=['id'], keep='first')
+    after_drop = len(final_df)
+    
+    payload = {"text": (f"📌 *kakao_crawl_all_on_one.py*\n"
+                        f"크롤링 {before_drop}개 음식점 목록 수집 완료\n"
+                        f"전처리 후 {after_drop}개 음식점 목록 S3 적재 시작\n")}
+    requests.post(
+        SLACK_WEBHOOK_URL,
+        json=payload,
+        timeout=10,
+    )
+    
+    
     print(f"✅ TASK 2 완료: 총 {len(final_df)}개 음식점 크롤링 완료")
     print("=" * 60)
     print(final_df.head())
@@ -291,7 +320,9 @@ def run_all_tasks(**context):
     print("☁️ TASK 3 시작: S3에 결과 업로드")
     print("=" * 60)
 
-    s3 = boto3.client("s3")
+    s3 = boto3.client(
+        "s3"
+    )
 
     # UTF-8 BOM 추가로 한글 깨짐 방지 (Excel에서도 정상 표시)
     csv_buffer = final_df.to_csv(index=False, encoding='utf-8-sig')
@@ -309,6 +340,15 @@ def run_all_tasks(**context):
     print("=" * 60)
     print()
     print("🎉 전체 작업 완료!")
+    payload = {"text": ("*kakao_crawl_all_in_one.py*\n"
+        f"📌 kakao_crawl/eating_house_{time_stamp}.csv 업로드 완료\n"
+                        f"총 {len(final_df)}개 데이터 S3 적재 완료")}
+
+    requests.post(
+        SLACK_WEBHOOK_URL,
+        json=payload,
+        timeout=10,
+    )
 
 
 # =========================
@@ -318,7 +358,7 @@ def run_all_tasks(**context):
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 default_args = {
-    "owner": "team5",
+    "owner": "규영",
     "email_on_failure": False,
     "retries": 1,
     "retry_delay": timedelta(minutes=2)
@@ -347,3 +387,5 @@ with DAG(
     # run_all 끝나면 extract_kakao_url DAG 실행됨
     run_all >> trigger_load_redshift
     # run_all
+
+
