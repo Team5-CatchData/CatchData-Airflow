@@ -11,11 +11,10 @@ REDSHIFT_USER = "dev_admin"
 REDSHIFT_PASSWORD = "StrongPassword123!"
 REDSHIFT_DB = "dev"
 KST = timezone(timedelta(hours=9))
-# time_stamp = datetime.now(KST).strftime("%Y%m%d")
-time_stamp = "20251219"
-S3_BUCKET = "427paul-test-bucket"
-S3_KAKAO_INFO = f"kakao_crawl/eating_house_{time_stamp}.csv"
-S3_KAKAO_IMG = f"kakao_img_url/eating_house_img_url_{time_stamp}.csv"
+time_stamp = datetime.now(KST).strftime("%Y%m%d")
+# time_stamp = "20251219"
+S3_BUCKET = "team5-batch"
+S3_KAKAO_INFO = f"raw_data/kakao/eating_house_{time_stamp}.csv"
 TARGET_TABLE_INFO = "raw_data.kakao_crawl"
 
 SLACK_WEBHOOK_URL = ("https://hooks.slack.com/services/T09SZ0BSHEU"
@@ -117,4 +116,5 @@ with DAG(
     )
 
     load_task >> trigger_static_feature_dag
+
 
