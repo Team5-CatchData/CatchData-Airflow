@@ -17,8 +17,6 @@ _driver_lock = threading.Lock()
 # =========================
 #  기본 설정
 # =========================
-AWS_ACCESS_KEY = ""
-AWS_SECRET_KEY = ""
 REST_API_KEY = ""
 SLACK_WEBHOOK_URL = ("https://hooks.slack.com/services/T09SZ0BSHEU"
                      "/B0A3W3R4H9D/Ea5DqrFBnQKc3SzbSuNhcmZo")
@@ -323,9 +321,7 @@ def run_all_tasks(**context):
     print("=" * 60)
 
     s3 = boto3.client(
-        "s3",
-        aws_access_key_id=AWS_ACCESS_KEY,
-        aws_secret_access_key=AWS_SECRET_KEY
+        "s3"
     )
 
     # UTF-8 BOM 추가로 한글 깨짐 방지 (Excel에서도 정상 표시)
@@ -391,3 +387,4 @@ with DAG(
     # run_all 끝나면 extract_kakao_url DAG 실행됨
     run_all >> trigger_load_redshift
     # run_all
+
