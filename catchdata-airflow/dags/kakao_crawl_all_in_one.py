@@ -17,7 +17,7 @@ _driver_lock = threading.Lock()
 # =========================
 #  기본 설정
 # =========================
-REST_API_KEY = ""
+REST_API_KEY = "aca346161a0e403cc7a59fefcae5c831"
 SLACK_WEBHOOK_URL = ("https://hooks.slack.com/services/T09SZ0BSHEU"
                      "/B0A3W3R4H9D/Ea5DqrFBnQKc3SzbSuNhcmZo")
 KST = timezone(timedelta(hours=9))
@@ -387,4 +387,5 @@ with DAG(
     # run_all 끝나면 extract_kakao_url DAG 실행됨
     run_all >> trigger_load_redshift
     # run_all
+
 
