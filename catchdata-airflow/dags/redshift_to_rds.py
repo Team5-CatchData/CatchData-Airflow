@@ -44,8 +44,8 @@ def transfer_redshift_to_rds(**context):
         cursor.executemany("""
             INSERT INTO main_restaurant (
                 restaurant_ID, name, region, city, category, rating, phone, x, y,
-                image_url, address, rec_quality, rec_balanced, rec_convenience
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                image_url, address, rec_quality, rec_balanced, rec_convenience, waitting
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (restaurant_ID) 
             DO UPDATE SET
                 name = EXCLUDED.name,
@@ -56,6 +56,7 @@ def transfer_redshift_to_rds(**context):
                 phone = EXCLUDED.phone,
                 x = EXCLUDED.x,
                 y = EXCLUDED.y,
+                waitting = EXCLUDED.waitting,
                 image_url = EXCLUDED.image_url,
                 address = EXCLUDED.address,
                 rec_quality = EXCLUDED.rec_quality,
