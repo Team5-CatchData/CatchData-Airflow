@@ -5,10 +5,10 @@ import requests
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-REDSHIFT_HOST = ""
+REDSHIFT_HOST = "default-workgroup.903836366474.ap-northeast-2.redshift-serverless.amazonaws.com"
 REDSHIFT_PORT = 5439
-REDSHIFT_USER = ""
-REDSHIFT_PASSWORD = ""
+REDSHIFT_USER = "dev_admin"
+REDSHIFT_PASSWORD = "StrongPassword123!"
 REDSHIFT_DB = "dev"
 KST = timezone(timedelta(hours=9))
 # time_stamp = datetime.now(KST).strftime("%Y%m%d")
@@ -117,3 +117,4 @@ with DAG(
     )
 
     load_task >> trigger_static_feature_dag
+
