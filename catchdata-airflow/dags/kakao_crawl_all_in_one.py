@@ -22,8 +22,8 @@ SLACK_WEBHOOK_URL = ("https://hooks.slack.com/services/T09SZ0BSHEU"
                      "/B0A3W3R4H9D/Ea5DqrFBnQKc3SzbSuNhcmZo")
 KST = timezone(timedelta(hours=9))
 time_stamp = datetime.now(KST).strftime("%Y%m%d")
-BUCKET_NAME = "427paul-test-bucket"
-OUTPUT_KEY = f"kakao_crawl/eating_house_{time_stamp}.csv"
+BUCKET_NAME = "team5-batch"
+OUTPUT_KEY = f"raw_data/kakao/eating_house_{time_stamp}.csv"
 
 
 # =========================
@@ -387,5 +387,6 @@ with DAG(
     # run_all 끝나면 extract_kakao_url DAG 실행됨
     run_all >> trigger_load_redshift
     # run_all
+
 
 
