@@ -10,9 +10,6 @@ import requests
 # =========================
 SLACK_WEBHOOK_URL = Variable.get("SLACK_WEBHOOK_URL")
 
-# ⚠️ Slack에서 클릭 가능한 주소여야 함
-AIRFLOW_BASE_URL = "http://13.209.225.5:8080"
-
 CHECK_INTERVAL_MIN = 60        # 최근 1시간
 RUNNING_THRESHOLD_MIN = 30    # 30분 이상 running
 
@@ -82,20 +79,6 @@ def monitor_dags():
         for dag_id, start_date in long_running_dags:
             message += f"• `{dag_id}` (시작: {start_date})\n"
         message += "\n"
-
-    # =========================
-    # DAG Grid 링크 (중복 제거)
-    # =========================
-    target_dag_ids = set(
-        [d[0] for d in failed_dags] +
-        [d[0] for d in failed_tasks] +
-        [d[0] for d in long_running_dags]
-    )
-
-    if target_dag_ids:
-        message += "🔗 *DAG Grid 바로가기*\n"
-        for dag_id in target_dag_ids:
-            message += f"• <{AIRFLOW_BASE_URL}/dags/{dag_id}/grid|{dag_id} Grid>\n"
 
     # =========================
     # Slack 전송
