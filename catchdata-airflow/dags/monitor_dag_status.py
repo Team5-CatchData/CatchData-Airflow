@@ -11,7 +11,7 @@ import requests
 SLACK_WEBHOOK_URL = Variable.get("SLACK_WEBHOOK_URL")
 
 # ⚠️ Slack에서 클릭 가능한 주소여야 함
-AIRFLOW_BASE_URL = "http://localhost:18080"
+AIRFLOW_BASE_URL = "http://13.209.225.5:8080"
 
 CHECK_INTERVAL_MIN = 60        # 최근 1시간
 RUNNING_THRESHOLD_MIN = 30    # 30분 이상 running
@@ -29,7 +29,7 @@ def monitor_dags():
         SELECT dag_id, logical_date
         FROM dag_run
         WHERE state = 'failed'
-          AND logical_date >= NOW() - INTERVAL '{CHECK_INTERVAL_MIN} minutes'
+        AND logical_date >= NOW() - INTERVAL '{CHECK_INTERVAL_MIN} minutes'
         ORDER BY logical_date DESC
     """)
     failed_dags = cur.fetchall()
@@ -39,7 +39,7 @@ def monitor_dags():
         SELECT dag_id, task_id, start_date
         FROM task_instance
         WHERE state = 'failed'
-          AND start_date >= NOW() - INTERVAL '{CHECK_INTERVAL_MIN} minutes'
+        AND start_date >= NOW() - INTERVAL '{CHECK_INTERVAL_MIN} minutes'
         ORDER BY start_date DESC
     """)
     failed_tasks = cur.fetchall()
@@ -49,7 +49,7 @@ def monitor_dags():
         SELECT dag_id, start_date
         FROM dag_run
         WHERE state = 'running'
-          AND start_date <= NOW() - INTERVAL '{RUNNING_THRESHOLD_MIN} minutes'
+        AND start_date <= NOW() - INTERVAL '{RUNNING_THRESHOLD_MIN} minutes'
         ORDER BY start_date
     """)
     long_running_dags = cur.fetchall()
