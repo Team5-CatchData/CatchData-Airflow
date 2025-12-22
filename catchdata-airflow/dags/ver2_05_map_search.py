@@ -117,7 +117,8 @@ def full_static_feature_pipeline():
         'address': String(300),
         'rec_quality': Numeric(15, 14),
         'rec_balanced': Numeric(15, 14),
-        'rec_convenience': Numeric(15, 14)
+        'rec_convenience': Numeric(15, 14),
+        'cluster': Integer()
     }
 
     # Staging 테이블 로드 (if_exists='fail'로 설정하여 충돌 방지)
@@ -180,5 +181,6 @@ with DAG(
         task_id="run_full_static_feature_pipeline",
         python_callable=full_static_feature_pipeline,
     )
+
 
     t0_create_table >> t1_full_pipeline
