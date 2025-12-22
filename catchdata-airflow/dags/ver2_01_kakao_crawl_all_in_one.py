@@ -29,7 +29,7 @@ OUTPUT_KEY = f"kakao_crawl/eating_house_{time_stamp}.csv"
 # =========================
 # 크롤링 함수
 # =========================
-def crawl_kakao_place(place_url):
+def crawl_kakao_place(id):
     import time
 
     import cv2
@@ -61,7 +61,7 @@ def crawl_kakao_place(place_url):
     )
 
     wait = WebDriverWait(driver, 10)
-
+    place_url = f"https://place.map.kakao.com/{id}"
     driver.get(place_url)
     time.sleep(1.0)
 
@@ -143,6 +143,7 @@ def crawl_kakao_place(place_url):
     driver.quit()
 
     return {
+        "id" : id,
         "rating": rating,
         "review_count": review_cnt,
         "blog_count": blog_cnt,
@@ -154,7 +155,8 @@ def crawl_kakao_place(place_url):
 
 def process_row(row):
     # place_url = f"https://place.map.kakao.com/{row['id']}"
-    return crawl_kakao_place(row['place_url'])
+    return crawl_kakao_place(row['id'])
+    # return crawl_kakao_place(row['place_url'])
 
 
 # =========================
@@ -286,6 +288,7 @@ def run_all_tasks(**context):
                 print(f"크롤링 실패: {str(e)}")
                 # 실패한 경우 빈 데이터 추가
                 results.append({
+                    "id":row['id'],
                     "rating": 0,
                     "review_count": 0,
                     "blog_count": 0,
@@ -294,11 +297,15 @@ def run_all_tasks(**context):
                     "update_time": time_stamp
                 })
                 completed += 1
-
+                
+    results = [r for r in results if r is not None]
+    results_df = pd.DataFrame(results)
+    
+    final_df = pd.merge(df, results_df, on='id', how='inner')
+    
     # distance, place_url 컬럼 제거
-    df = df.drop(columns=["distance", "place_url"], errors="ignore")
+    final_df = final_df.drop(columns=["distance", "place_url"], errors="ignore")
 
-    final_df = pd.concat([df.reset_index(drop=True), pd.DataFrame(results)], axis=1)
     before_drop = len(final_df)
     
     # id를 기준으로 중복 제거 (첫 번째 데이터만 남김)
@@ -329,7 +336,9 @@ def run_all_tasks(**context):
     print("=" * 60)
 
     s3 = boto3.client(
-        "s3"
+        "s3",
+        aws_access_key_id=AWS_ACCESS_KEY,
+        aws_secret_access_key=AWS_SECRET_KEY
     )
 
     # UTF-8 BOM 추가로 한글 깨짐 방지 (Excel에서도 정상 표시)

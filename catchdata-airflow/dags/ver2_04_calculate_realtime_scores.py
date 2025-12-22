@@ -167,7 +167,8 @@ def calculate_realtime_scores():
 
     print("*ver2_04_calculate_realtime_scores.py*\n"
           f"✅ realtime_waiting UPSERT 완료: {len(final_df)} rows")
-    payload = {"text": (f"📌 *✅ realtime_waiting UPSERT 완료: {len(final_df)} rows*\n")}
+    payload = {"text": ("*ver2_04_calculate_realtime_scores.py*\n"
+                        f"📌 ✅ realtime_waiting UPSERT 완료: {len(final_df)} rows\n")}
 
     requests.post(
         SLACK_WEBHOOK_URL,
