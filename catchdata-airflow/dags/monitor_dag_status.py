@@ -1,6 +1,6 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.hooks.postgres_hook import PostgresHook
+from airflow.providers.postgres.hooks.postgres  import PostgresHook
 from datetime import datetime, timedelta
 import requests
 
@@ -84,7 +84,7 @@ def monitor_dags():
     target_dag_ids = set([d[0] for d in failed_dags + long_running_dags])
     for dag_id in target_dag_ids:
         message += f"🔗 DAG 보기: {AIRFLOW_BASE_URL}/dags/{dag_id}/grid\n"
-        
+
     requests.post(
         SLACK_WEBHOOK_URL,
         json={"text": message},
@@ -104,7 +104,7 @@ with DAG(
     dag_id="dag_monitoring",
     description="Airflow DAG 상태 모니터링 (실패 / 장기 실행)",
     start_date=datetime(2025, 1, 1),
-    schedule_interval="*/10 * * * *",  # 10분마다
+    schedule="*/10 * * * *",  # 10분마다
     catchup=False,
     default_args=default_args,
     tags=["monitoring", "slack"]

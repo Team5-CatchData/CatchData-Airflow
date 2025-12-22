@@ -9,7 +9,7 @@ def sleep_long():
 with DAG(
     dag_id="test_long_running_dag",
     start_date=datetime(2025, 1, 1),
-    schedule_interval=None,
+    schedule=None,
     catchup=False,
     tags=["test", "monitoring"]
 ) as dag:

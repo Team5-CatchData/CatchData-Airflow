@@ -8,7 +8,7 @@ def always_fail():
 with DAG(
     dag_id="test_fail_dag",
     start_date=datetime(2025, 1, 1),
-    schedule_interval=None,  # 수동 실행
+    schedule=None,  # 수동 실행
     catchup=False,
     tags=["test", "monitoring"]
 ) as dag:
