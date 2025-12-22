@@ -15,6 +15,7 @@ REDSHIFT_CONN_ID = "redshift_conn"
 SCHEMA_NAME = "analytics"
 RAW_TABLE1 = "raw_data.kakao_crawl"
 RAW_TABLE2 = "analytics.realtime_waiting"
+RAW_TABLE3 = "analytics.derived_features_base"
 FINAL_TABLE_NAME = "map_search"
 SLACK_WEBHOOK_URL = ("https://hooks.slack.com/services/T09SZ0BSHEU"
                      "/B0A3W3R4H9D/Ea5DqrFBnQKc3SzbSuNhcmZo")
@@ -38,7 +39,8 @@ CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.{FINAL_TABLE_NAME} (
     address VARCHAR(300),
     rec_quality FLOAT,
     rec_balanced FLOAT,
-    rec_convenience FLOAT
+    rec_convenience FLOAT,
+    cluster INTEGER
 ) DISTSTYLE EVEN;
 """
 
@@ -67,10 +69,13 @@ def full_static_feature_pipeline():
         A.img_url as image_url,
         B.rec_quality,
         B.rec_balanced,
-        B.rec_convenience
+        B.rec_convenience,
+        C.cluster
     FROM {RAW_TABLE1} A
     INNER JOIN {RAW_TABLE2} B 
-        ON CAST(A.id AS VARCHAR) = B.id;
+        ON A.id = B.id
+    LEFT JOIN {RAW_TABLE3} C
+        ON A.id = C.id;
     """
 
     df = redshift_hook.get_pandas_df(sql_select)
@@ -93,7 +98,7 @@ def full_static_feature_pipeline():
 
     final_df = df[['id', 'name', 'region', 'city', 'category', 'x', 'y', 
                    'waiting', 'rating', 'phone', 'image_url', 'address',
-                   'rec_quality', 'rec_balanced', 'rec_convenience']].copy()
+                   'rec_quality', 'rec_balanced', 'rec_convenience', 'cluster']].copy()
 
     # 3. Redshift 원자적 교체 실행
     STAGING_TABLE = f"{FINAL_TABLE_NAME}_staging"
@@ -117,7 +122,8 @@ def full_static_feature_pipeline():
         'address': String(300),
         'rec_quality': Numeric(15, 14),
         'rec_balanced': Numeric(15, 14),
-        'rec_convenience': Numeric(15, 14)
+        'rec_convenience': Numeric(15, 14),
+        'cluster': Integer()
     }
 
     # Staging 테이블 로드 (if_exists='fail'로 설정하여 충돌 방지)
@@ -180,5 +186,6 @@ with DAG(
         task_id="run_full_static_feature_pipeline",
         python_callable=full_static_feature_pipeline,
     )
+
 
     t0_create_table >> t1_full_pipeline
