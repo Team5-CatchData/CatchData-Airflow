@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.operators.python import PythonOperator
+from airflow.providers.standard.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres  import PostgresHook
 from datetime import datetime, timedelta
 import requests
@@ -24,30 +24,30 @@ def monitor_dags():
 
     # 실패한 DAG
     cur.execute(f"""
-        SELECT dag_id, execution_date
+        SELECT dag_id, logical_date
         FROM dag_run
         WHERE state = 'failed'
-        AND execution_date >= NOW() - INTERVAL '{CHECK_INTERVAL_MIN} minutes'
-        ORDER BY execution_date DESC
+        AND logical_date >= NOW() - INTERVAL '{CHECK_INTERVAL_MIN} minutes'
+        ORDER BY logical_date DESC
     """)
     failed_dags = cur.fetchall()
 
     # 실패한 Task
     cur.execute(f"""
-        SELECT dag_id, task_id, execution_date
+        SELECT dag_id, task_id, logical_date
         FROM task_instance
         WHERE state = 'failed'
-        AND execution_date >= NOW() - INTERVAL '{CHECK_INTERVAL_MIN} minutes'
-        ORDER BY execution_date DESC
+        AND logical_date >= NOW() - INTERVAL '{CHECK_INTERVAL_MIN} minutes'
+        ORDER BY logical_date DESC
     """)
     failed_tasks = cur.fetchall()
     # 장시간 running DAG
     cur.execute(f"""
-        SELECT dag_id, execution_date
+        SELECT dag_id, logical_date
         FROM dag_run
         WHERE state = 'running'
-        AND execution_date <= NOW() - INTERVAL '{RUNNING_THRESHOLD_MIN} minutes'
-        ORDER BY execution_date
+        AND logical_date <= NOW() - INTERVAL '{RUNNING_THRESHOLD_MIN} minutes'
+        ORDER BY logical_date
     """)
     long_running_dags = cur.fetchall()
 
@@ -80,10 +80,14 @@ def monitor_dags():
             message += f"• `{dag_id}` (시작: {exec_date})\n"
         message += "\n"
 
-    # DAG 링크 (중복 제거해서 대표 1개만)
+    # DAG Grid 링크 (중복 제거)
     target_dag_ids = set([d[0] for d in failed_dags + long_running_dags])
-    for dag_id in target_dag_ids:
-        message += f"🔗 DAG 보기: {AIRFLOW_BASE_URL}/dags/{dag_id}/grid\n"
+    
+    if target_dag_ids:
+        message += "🔗 *DAG Grid 바로가기*\n"
+        for dag_id in target_dag_ids:
+            message += f"• <{AIRFLOW_BASE_URL}/dags/{dag_id}/grid|{dag_id} Grid>\n"
+
 
     requests.post(
         SLACK_WEBHOOK_URL,
