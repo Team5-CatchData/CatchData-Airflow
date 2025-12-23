@@ -38,7 +38,7 @@ RUN python -m venv /opt/dbt_venv \
  && /opt/dbt_venv/bin/pip install --upgrade pip setuptools wheel \
  && /opt/dbt_venv/bin/pip install --no-cache-dir \
     dbt-core==1.6.8 \
-    dbt-duckdb==1.6.8 \
+    dbt-duckdb==1.6.0 \
     dbt-postgres==1.6.8 \
     dbt-redshift==1.6.4 \
  && chown -R airflow:0 /opt/dbt_venv
