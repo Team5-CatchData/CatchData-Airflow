@@ -79,15 +79,18 @@ def calculate_realtime_scores():
 
     def calc(row):
         hour_ratio = (row[TIME_COLUMN] - min_visits) / divisor
-
-        current_visitors = row["base_population"] * hour_ratio
+        virtual_base = row['base_population'] * 2.5
+        # current_visitors = row["base_population"] * hour_ratio
+        current_visitors = virtual_base * hour_ratio
 
         # 방문자 거의 없으면 대기 없음
         if current_visitors < 1:
             return pd.Series([current_visitors, 0])
 
-        expected_waiting = current_visitors * (0.15 + hour_ratio * 0.25)
-        variation = expected_waiting * 0.3
+        base_waiting_ratio = 0.2 + (hour_ratio ** 2) * 0.8
+        expected_waiting = current_visitors * base_waiting_ratio
+        # expected_waiting = current_visitors * (0.15 + hour_ratio * 0.25)
+        variation = expected_waiting * 0.5
 
         waiting = int(random.normalvariate(expected_waiting, variation))
         waiting = max(0, min(waiting, int(current_visitors)))
