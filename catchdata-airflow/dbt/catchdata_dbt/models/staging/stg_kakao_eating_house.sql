@@ -1,10 +1,5 @@
 {{ config(materialized='table') }}
 
-LOAD httpfs;
-
-SET s3_region='ap-northeast-2';
-SET s3_use_ssl=true;
-
 select
   *,
   regexp_extract(filename, '_([0-9]{8})\.csv', 1) as batch_date
