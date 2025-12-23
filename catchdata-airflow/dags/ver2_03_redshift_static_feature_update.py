@@ -1,20 +1,25 @@
 import json
 import math
-from datetime import datetime, timedelta
-
+import io
+import joblib
+import boto3
 import pandas as pd
 import requests
+from datetime import datetime, timedelta
+
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.common.sql.operators.sql import (
     SQLExecuteQueryOperator,  # 테이블 생성용
 )
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from sqlalchemy import Numeric, String
+from sqlalchemy import Numeric, String, TIMESTAMP
 
 # =========================
 # 기본 설정
 # =========================
+BUCKET_NAME = "team5-batch"
+
 REDSHIFT_CONN_ID = "redshift_conn"
 SCHEMA_NAME = "analytics"
 RAW_TABLE = "raw_data.kakao_crawl"
@@ -43,12 +48,36 @@ CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.{FINAL_TABLE_NAME} (
     rating NUMERIC(3, 2),
     -- 24개 시간대 컬럼 (방문자 수는 작으므로 SMALLINT 사용)
     {', '.join([f'{col} SMALLINT' for col in TIME_COLUMNS])},
+    cluster SMALLINT,
     calculated_at TIMESTAMP
 )
 -- id를 기준으로 데이터 분산 및 정렬하여 조인 및 쿼리 성능 최적화
 DISTKEY(id) 
 SORTKEY(calculated_at);
 """
+
+# =========================
+# 💡 보조 함수: S3에서 객체 로드
+# =========================
+def load_from_s3(bucket, key):
+    # Airflow Connections에 설정된 AWS 자격증명을 사용하는 것이 좋으나, 
+    # 여기서는 직접 입력을 가정한 기본 구조로 작성합니다.
+    s3 = boto3.client(
+        "s3"
+        )
+    try:
+        response = s3.get_object(Bucket=bucket, Key=key)
+        return joblib.load(io.BytesIO(response['Body'].read()))
+    except s3.exceptions.NoSuchKey:
+        # 에러 발생 시 버킷 내 파일 목록을 출력하여 경로를 확인하도록 유도
+        print(f"❌ 에러: {bucket} 버킷에 {key} 파일이 없습니다.")
+        objs = s3.list_objects_v2(Bucket=bucket, Prefix='models/') # models 폴더 목록 조회
+        print("현재 존재하는 파일들:")
+        for obj in objs.get('Contents', []):
+            print(f" - {obj['Key']}")
+        raise # 에러를 다시 던져서 Airflow에서 확인 가능하게 함
+
+
 
 # =========================
 # 💡 단일 통합 함수: 모든 로직을 순차적으로 실행 (Atomic Replacement)
@@ -87,9 +116,6 @@ def full_static_feature_pipeline():
 
     # 2. 파생 변수 계산 및 hourly_visit 분리 (Python/Pandas 환경)
     print("--- 2. 파생 변수 계산 및 hourly_visit 분리 시작 ---")
-    
-    # --- category 추출 ---
-    df['category'] = df['category_name'].str.split('>').str[1].str.strip()
 
     # --- base_population 계산 ---
     df['base_population'] = (
@@ -119,18 +145,48 @@ def full_static_feature_pipeline():
     df[TIME_COLUMNS] = pd.DataFrame(df['hourly_list'].to_list(), index=df.index).astype('int16')
     df.drop(columns=['hourly_list', 'hourly_visit'], inplace=True)
 
+    # 클러스터링 
+    ## --- category 추출 ---
+    df['category'] = df['category_name'].str.split('>').str[1].str.strip()
+    
+    ## --- 시간대별 방문 인원 나누기 ---
+    df['breakfast'] = df[['time6','time7','time8','time9','time10']].sum(axis=1)
+    df['lunch'] = df[['time11','time12','time13','time14','time15']].sum(axis=1)
+    df['dinner'] = df[['time17','time18','time19','time20','time21']].sum(axis=1)
+    df['late_night'] = df[['time21','time22','time23','time0','time1']].sum(axis=1)
+    df['over_night'] = df[['time2','time3','time4','time5']].sum(axis=1)
+    
+    ## 원-핫 인코딩
+    clustering_df = df[['id', 'category', 'base_population', 'quality_score', 
+                        'breakfast', 'lunch', 'dinner', 'late_night', 'over_night']]
+    df_dummy = pd.get_dummies(clustering_df, columns=['category'], dtype=int)
+    
+    # 4. 모델 로드 및 예측
+    print("--- ML 모델 로드 및 예측 시작 ---")
+    model = load_from_s3(BUCKET_NAME, "models/kmeans_model_v1.pkl")
+    scaler = load_from_s3(BUCKET_NAME, "models/scaler_v1.pkl")
+    
+    # [중요] 학습 시 사용했던 컬럼 리스트 로드 (컬럼 순서/개수 일치 필수)
+    # 모델 저장 시 함께 저장했던 컬럼 리스트를 불러온다고 가정
+    train_cols = load_from_s3(BUCKET_NAME, "models/train_columns.pkl")
+    
+    # 현재 데이터에 없는 카테고리 컬럼은 0으로 채우고, 학습 시 없던 컬럼은 제거
+    for col in train_cols:
+        if col not in df_dummy.columns:
+            df_dummy[col] = 0
+    
+    # 학습 시와 동일한 컬럼 순서로 정렬 (id 제외)
+    X = df_dummy[train_cols].drop(columns=['id'], errors='ignore')
+    
+    # 스케일링 및 예측
+    X_scaled = scaler.transform(X)
+    df['cluster'] = model.predict(X_scaled)
 
-    # --- 최종 테이블 구조 준비 ---
-    final_df = df[[
-        'id',
-        'category',
-        'base_population',
-        'quality_score',
-        'rating',
-        *TIME_COLUMNS
-    ]].copy()
-
+    # 5. 최종 데이터 정리
+    final_df = df[['id', 'category', 'base_population', 'quality_score', 'rating', 
+                   *TIME_COLUMNS, 'cluster']].copy()
     final_df['calculated_at'] = datetime.now()
+    
 
     print("✅ 파생 변수 및 시간대 컬럼 계산 완료")
 
@@ -148,6 +204,7 @@ def full_static_feature_pipeline():
         'base_population': Numeric(18, 4),
         'quality_score': Numeric(18, 4),
         'rating': Numeric(3, 2),
+        'cluster': Numeric(3, 0)
         # TIME_COLUMNS의 타입은 int16을 통해 SMALLINT로 자동으로 추론되도록 합니다.
     }
 

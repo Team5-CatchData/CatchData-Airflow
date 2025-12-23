@@ -18,7 +18,7 @@ def transfer_redshift_to_rds(**context):
         SELECT 
             id, name, region, city, category, rating, 
             phone, x, y, waiting, image_url, address,
-            rec_quality, rec_balanced, rec_convenience
+            rec_quality, rec_balanced, rec_convenience, cluster
         FROM analytics.map_search
         ORDER BY id
     """
@@ -42,8 +42,8 @@ def transfer_redshift_to_rds(**context):
         cursor.executemany("""
             INSERT INTO main_restaurant (
                 "restaurant_ID", name, region, city, category, rating, phone, x, y, waiting,
-                image_url, address, rec_quality, rec_balanced, rec_convenience
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                image_url, address, rec_quality, rec_balanced, rec_convenience, cluster
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT ("restaurant_ID")
             DO UPDATE SET
                 name = EXCLUDED.name,
@@ -59,7 +59,8 @@ def transfer_redshift_to_rds(**context):
                 address = EXCLUDED.address,
                 rec_quality = EXCLUDED.rec_quality,
                 rec_balanced = EXCLUDED.rec_balanced,
-                rec_convenience = EXCLUDED.rec_convenience
+                rec_convenience = EXCLUDED.rec_convenience,
+                cluster=EXCLUDED.cluster
         """, records)
         
         conn.commit()
