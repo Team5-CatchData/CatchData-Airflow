@@ -1,6 +1,7 @@
 {{ config(
-    materialized='table',
-    dist='id'
+    -- materialized='table',
+    -- dist='id'
+    enabled=false
 ) }}
 
 SELECT 

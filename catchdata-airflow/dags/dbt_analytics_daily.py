@@ -24,7 +24,7 @@ with DAG(
         task_id="dbt_run",
         bash_command="""
         cd /opt/airflow/dbt/catchdata_dbt && \
-        dbt run --exclude superset map_search
+        dbt run
         """,
     )
 

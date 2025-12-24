@@ -1,6 +1,7 @@
 {{ config(
-    materialized='table',
-    schema='superset'
+    -- materialized='table',
+    -- schema='superset'
+    enabled=false
 ) }}
 
 SELECT
