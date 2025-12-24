@@ -1,8 +1,4 @@
-{{ config(
-    -- materialized='table',
-    -- dist='id'
-    enabled=false
-) }}
+{{ config(enabled=false) }}
 
 SELECT 
     A.id,
