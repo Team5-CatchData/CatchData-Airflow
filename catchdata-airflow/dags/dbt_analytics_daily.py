@@ -15,7 +15,7 @@ with DAG(
     dag_id="dbt_analytics_daily",
     default_args=default_args,
     start_date=datetime(2025, 1, 1, tzinfo=KST),
-    schedule_interval="0 4 * * 1",  # 매주 월요일 04:00 (KST)
+    schedule="0 4 * * 1",  # 매주 월요일 04:00 (KST)
     catchup=False,
     tags=["dbt", "analytics"],
 ) as dag:
@@ -24,7 +24,7 @@ with DAG(
         task_id="dbt_run",
         bash_command="""
         cd /opt/airflow/dbt/catchdata_dbt && \
-        dbt run --exclude map_search
+        dbt run --exclude superset map_search
         """,
     )
 
