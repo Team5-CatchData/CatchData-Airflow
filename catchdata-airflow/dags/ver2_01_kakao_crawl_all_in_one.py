@@ -194,7 +194,7 @@ def run_all_tasks(**context):
             query = f"{loc} {cat}"
             
             for page in range(1, 2): # 각 세부 키워드당 45개씩 수집
-                params = {"query": query, "size": 1, "page": page}
+                params = {"query": query, "size": 6, "page": page}
                 res = requests.get(url, params=params, headers=headers).json()
                 docs = res.get("documents", [])
                 
