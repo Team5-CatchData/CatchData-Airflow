@@ -1,7 +1,9 @@
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-from datetime import datetime
 import time
+from datetime import datetime
+
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.sdk import DAG
+
 
 def sleep_long():
     time.sleep(60 * 60)  # 1시간 sleep

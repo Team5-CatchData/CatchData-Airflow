@@ -2,23 +2,25 @@ from datetime import datetime, timedelta, timezone
 
 import psycopg2
 import requests
-from airflow import DAG
-from airflow.operators.python import PythonOperator
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.sdk import DAG, Variable
 
-REDSHIFT_HOST = "default-workgroup.903836366474.ap-northeast-2.redshift-serverless.amazonaws.com"
-REDSHIFT_PORT = 5439
-REDSHIFT_USER = "dev_admin"
-REDSHIFT_PASSWORD = "StrongPassword123!"
-REDSHIFT_DB = "dev"
+REDSHIFT_HOST = Variable.get(
+    "REDSHIFT_HOST",
+    default_var="default-workgroup.903836366474.ap-northeast-2.redshift-serverless.amazonaws.com"
+)
+REDSHIFT_PORT = int(Variable.get("REDSHIFT_PORT", default_var="5439"))
+REDSHIFT_USER = Variable.get("REDSHIFT_USER", default_var="dev_admin")
+REDSHIFT_PASSWORD = Variable.get("REDSHIFT_PASSWORD")
+REDSHIFT_DB = Variable.get("REDSHIFT_DB", default_var="dev")
 KST = timezone(timedelta(hours=9))
 time_stamp = datetime.now(KST).strftime("%Y%m%d")
 # time_stamp = "20251219"
-S3_BUCKET = "team5-batch"
+S3_BUCKET = Variable.get("S3_BUCKET", default_var="team5-batch")
 S3_KAKAO_INFO = f"raw_data/kakao/eating_house_{time_stamp}.csv"
 TARGET_TABLE_INFO = "raw_data.kakao_crawl"
 
-SLACK_WEBHOOK_URL = ("https://hooks.slack.com/services/T09SZ0BSHEU"
-                     "/B0A3W3R4H9D/Ea5DqrFBnQKc3SzbSuNhcmZo")
+SLACK_WEBHOOK_URL = Variable.get("SLACK_WEBHOOK_URL")
 
 
 def load_s3_to_redshift():
@@ -67,7 +69,7 @@ def load_s3_to_redshift():
 
         conn.commit()
         print("✅ 데이터 교체 완료")
-        
+
         payload = {"text": (f"*ver2_02_load_s3_to_redshift.py*\n"
                             f"📌 S3 데이터 {S3_KAKAO_INFO} 데이터 -> Redshift {TARGET_TABLE_INFO} 적재 완료\n")}
 
@@ -86,7 +88,6 @@ def load_s3_to_redshift():
         conn.close()
 
 
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 default_args = {
     "owner": "규영",

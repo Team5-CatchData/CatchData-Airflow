@@ -7,8 +7,8 @@ from datetime import datetime, timedelta, timezone
 import boto3
 import pandas as pd
 import requests
-from airflow import DAG
-from airflow.operators.python import PythonOperator
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.sdk import DAG, Variable
 
 # ChromeDriver 다운로드 Lock (동시 다운로드 방지)
 _driver_lock = threading.Lock()
@@ -17,12 +17,11 @@ _driver_lock = threading.Lock()
 # =========================
 #  기본 설정
 # =========================
-REST_API_KEY = "aca346161a0e403cc7a59fefcae5c831"
-SLACK_WEBHOOK_URL = ("https://hooks.slack.com/services/T09SZ0BSHEU"
-                     "/B0A3W3R4H9D/Ea5DqrFBnQKc3SzbSuNhcmZo")
+REST_API_KEY = Variable.get("KAKAO_REST_API_KEY")
+SLACK_WEBHOOK_URL = Variable.get("SLACK_WEBHOOK_URL")
 KST = timezone(timedelta(hours=9))
 time_stamp = datetime.now(KST).strftime("%Y%m%d")
-BUCKET_NAME = "427paul-test-bucket"
+BUCKET_NAME = Variable.get("S3_BUCKET_NAME", default_var="427paul-test-bucket")
 OUTPUT_KEY = f"kakao_crawl/eating_house_{time_stamp}.csv"
 
 
@@ -51,10 +50,10 @@ def crawl_kakao_place(id):
     options.add_argument("user-agent=Mozilla/5.0")
 
     # Lock을 사용하여 ChromeDriver 다운로드 동시성 문제 방지
-    
+
     with _driver_lock:
         driver_path = ChromeDriverManager().install()
-    
+
     driver = webdriver.Chrome(
         service=Service(driver_path),
         options=options
@@ -94,7 +93,7 @@ def crawl_kakao_place(id):
                 idx[np.isnan(clean)], idx[~np.isnan(clean)], clean[~np.isnan(clean)]
             )
         img_values = clean.tolist()
-    except:
+    except Exception as e:
         print(f"{place_url} : 방문자 그래프를 처리할 수 없어 중단합니다 ({e})")
         driver.quit()
         return None
@@ -102,23 +101,29 @@ def crawl_kakao_place(id):
 
     # 별점
     try:
-        rating = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "span.num_star"))).text
-    except:
+        rating = wait.until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "span.num_star"))
+        ).text
+    except Exception:
         rating = 0
 
     # 후기 & 블로그 수
     review_cnt = 0
     blog_cnt = 0
     try:
-        titles = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "span.info_tit")))
-        counts = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "span.info_num")))
+        titles = wait.until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, "span.info_tit"))
+        )
+        counts = wait.until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, "span.info_num"))
+        )
         title_list = [t.text for t in titles]
         count_list = [c.text for c in counts]
         if "후기" in title_list:
             review_cnt = count_list[title_list.index("후기")]
         if "블로그" in title_list:
             blog_cnt = count_list[title_list.index("블로그")]
-    except:
+    except Exception:
         pass
 
 
@@ -137,7 +142,7 @@ def crawl_kakao_place(id):
             if src and src.startswith("http"):
                 img_url = src   # ✅ 첫 번째 이미지 발견 즉시 반환
                 break
-    except:
+    except Exception:
         pass
 
     driver.quit()
@@ -181,7 +186,7 @@ def run_all_tasks(**context):
 
     districts = ['홍대', '대치동']
     # districts = ['청담동', '롯데월드몰', '압구정', '성수동', '강남역', '건대', '홍대', '대치동']
-    categories = ['한식', '일식', '중식', '양식', '술집', '고기집', 
+    categories = ['한식', '일식', '중식', '양식', '술집', '고기집',
                 '치킨', '분식', '샤브샤브', '간식', '뷔페'] # 키워드 세분화
 
     all_results = []
@@ -189,29 +194,29 @@ def run_all_tasks(**context):
     for loc in districts:
         print(f"\n>>> {loc} 지역 수집 시작...")
         district_count = 0
-        
+
         for cat in categories:
             query = f"{loc} {cat}"
-            
+
             for page in range(1, 2): # 각 세부 키워드당 45개씩 수집
-                params = {"query": query, "size": 1, "page": page}
-                res = requests.get(url, params=params, headers=headers).json()
+                params = {"query": query, "size": 6, "page": page}
+                res = requests.get(url, params=params, headers=headers, timeout=10).json()
                 docs = res.get("documents", [])
-                
+
                 if not docs:
                     break
-                
+
                 # for doc in docs:
                 #     doc['main_district'] = loc # 어느 지역인지 저장
                 #     doc['sub_category'] = cat  # 어떤 키워드로 찾았는지 저장
-                    
+
                 all_results.extend(docs)
                 district_count += len(docs)
-                
+
                 if res.get("meta", {}).get("is_end"):
                     break
                 time.sleep(0.1)
-                
+
         print(f"{loc} 수집 완료 (누적: {district_count}개)")
 
     # 데이터프레임 생성 및 중복 제거
@@ -225,15 +230,15 @@ def run_all_tasks(**context):
     df = df_final
     # 음식점만 (FD6)
     df = df[df["category_group_code"] == "FD6"]
-    
+
     # 음식점 필터링 후 데이터 수
     only_FD6 = len(df)
-    
+
     print(f"음식점 전처리 후 데이터 수: {only_FD6}")
 
     # id를 기준으로 중복 제거 (첫 번째 데이터만 남김)
     df = df.drop_duplicates(subset=['id'], keep='first')
-    
+
     # 중복 제거 후 데이터 수
     drop_duplicate = len(df)
     print(f"중복 제거 후 데이터 수: {drop_duplicate}")
@@ -241,7 +246,7 @@ def run_all_tasks(**context):
     print(f"✅ TASK 1 완료: 총 {drop_duplicate}개 음식점 목록 수집 완료")
     print("=" * 60)
     print()
-    
+
     payload = {"text": (f"📌 *ver2_01_kakao_crawl_all_on_one.py*\n"
                         f"카카오 API에서 출력된 총 데이터 수 : {crawl_data_len}개\n"
                         f"음식점 전처리 후 데이터 수 : {only_FD6}\n"
@@ -251,7 +256,7 @@ def run_all_tasks(**context):
         json=payload,
         timeout=10,
     )
-    
+
     # ========================================
     # TASK 2: 병렬 크롤링으로 상세 정보 수집
     # ========================================
@@ -274,7 +279,7 @@ def run_all_tasks(**context):
     tasks = []
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        for i, row in df.iterrows():
+        for _i, row in df.iterrows():
             tasks.append(executor.submit(process_row, row))
 
         completed = 0
@@ -297,21 +302,21 @@ def run_all_tasks(**context):
                     "update_time": time_stamp
                 })
                 completed += 1
-                
+
     results = [r for r in results if r is not None]
     results_df = pd.DataFrame(results)
-    
+
     final_df = pd.merge(df, results_df, on='id', how='inner')
-    
+
     # distance, place_url 컬럼 제거
     final_df = final_df.drop(columns=["distance", "place_url"], errors="ignore")
 
     before_drop = len(final_df)
-    
+
     # id를 기준으로 중복 제거 (첫 번째 데이터만 남김)
     final_df = final_df.drop_duplicates(subset=['id'], keep='first')
     after_drop = len(final_df)
-    
+
     payload = {"text": (f"📌 *ver2_01_kakao_crawl_all_on_one.py*\n"
                         f"크롤링 {before_drop}개 음식점 목록 수집 완료\n"
                         f"전처리 후 {after_drop}개 음식점 목록 S3 적재 시작\n")}
@@ -320,8 +325,8 @@ def run_all_tasks(**context):
         json=payload,
         timeout=10,
     )
-    
-    
+
+
     print(f"✅ TASK 2 완료: 총 {len(final_df)}개 음식점 크롤링 완료")
     print("=" * 60)
     print(final_df.head())
@@ -335,11 +340,8 @@ def run_all_tasks(**context):
     print("☁️ TASK 3 시작: S3에 결과 업로드")
     print("=" * 60)
 
-    s3 = boto3.client(
-        "s3",
-        aws_access_key_id=AWS_ACCESS_KEY,
-        aws_secret_access_key=AWS_SECRET_KEY
-    )
+    # AWS 자격증명은 Airflow Connection 또는 환경변수에서 자동으로 가져옴
+    s3 = boto3.client("s3")
 
     # UTF-8 BOM 추가로 한글 깨짐 방지 (Excel에서도 정상 표시)
     csv_buffer = final_df.to_csv(index=False, encoding='utf-8-sig')
@@ -372,7 +374,6 @@ def run_all_tasks(**context):
 # DAG 정의
 # =========================
 
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 default_args = {
     "owner": "규영",

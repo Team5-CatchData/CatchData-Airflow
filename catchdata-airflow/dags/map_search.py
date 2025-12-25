@@ -1,12 +1,11 @@
-import pandas as pd
-import requests
 from datetime import datetime, timedelta
 
-from airflow import DAG
-from airflow.operators.python import PythonOperator
+import requests
 from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from sqlalchemy import Numeric, String, Integer, BigInteger, Float, text
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.sdk import DAG
+from sqlalchemy import BigInteger, Numeric, String, text
 
 # =========================
 # 기본 설정
@@ -54,7 +53,7 @@ def full_static_feature_pipeline():
     # 1. Redshift에서 통합 데이터 로드
     print("--- 1. Redshift에서 원본 데이터 로드 시작 ---")
     sql_select = f"""
-    SELECT 
+    SELECT
         A.id,
         A.place_name as name,
         A.address_name as address,
@@ -69,7 +68,7 @@ def full_static_feature_pipeline():
         B.rec_balanced,
         B.rec_convenience
     FROM {RAW_TABLE1} A
-    INNER JOIN {RAW_TABLE2} B 
+    INNER JOIN {RAW_TABLE2} B
         ON CAST(A.id AS VARCHAR) = B.id;
     """
 
@@ -91,7 +90,7 @@ def full_static_feature_pipeline():
     df['region'] = address_split[0]
     df['city'] = address_split[1]
 
-    final_df = df[['id', 'name', 'region', 'city', 'category', 'x', 'y', 
+    final_df = df[['id', 'name', 'region', 'city', 'category', 'x', 'y',
                    'waiting', 'rating', 'phone', 'image_url', 'address',
                    'rec_quality', 'rec_balanced', 'rec_convenience']].copy()
 
@@ -121,12 +120,12 @@ def full_static_feature_pipeline():
     }
 
     # Staging 테이블 로드 (if_exists='fail'로 설정하여 충돌 방지)
-    print(f"--- 3-2. Staging 테이블 로드 실행 ---")
+    print("--- 3-2. Staging 테이블 로드 실행 ---")
     final_df.to_sql(
         name=STAGING_TABLE,
         con=engine,
         schema=SCHEMA_NAME,
-        if_exists='fail', 
+        if_exists='fail',
         index=False,
         dtype=dtype_mapping
     )
@@ -144,7 +143,7 @@ def full_static_feature_pipeline():
 
     redshift_hook.run(sql_commands)
     print(f"✅ {SCHEMA_NAME}.{FINAL_TABLE_NAME} 갱신 완료")
-    
+
     # Slack 알림
     payload = {"text": (f"📌 *✅ {SCHEMA_NAME}.{FINAL_TABLE_NAME} 갱신 완료 {len(final_df)} rows*\n")}
     requests.post(SLACK_WEBHOOK_URL, json=payload, timeout=10)

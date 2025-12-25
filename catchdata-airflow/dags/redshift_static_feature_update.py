@@ -4,12 +4,12 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 import requests
-from airflow import DAG
-from airflow.operators.python import PythonOperator
 from airflow.providers.common.sql.operators.sql import (
     SQLExecuteQueryOperator,  # 테이블 생성용
 )
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.sdk import DAG
 from sqlalchemy import Numeric
 
 # =========================
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.{FINAL_TABLE_NAME} (
     calculated_at TIMESTAMP
 )
 -- id를 기준으로 데이터 분산 및 정렬하여 조인 및 쿼리 성능 최적화
-DISTKEY(id) 
+DISTKEY(id)
 SORTKEY(calculated_at);
 """
 
@@ -54,7 +54,7 @@ SORTKEY(calculated_at);
 # =========================
 def full_static_feature_pipeline():
     """
-    hourly_visit JSON을 24개 컬럼으로 변환하고, 
+    hourly_visit JSON을 24개 컬럼으로 변환하고,
     Redshift 테이블 이름 교체를 통해 원자적으로 갱신합니다.
     """
 
@@ -65,11 +65,11 @@ def full_static_feature_pipeline():
     # 1. Redshift에서 원본 데이터 로드
     print("--- 1. Redshift에서 원본 데이터 로드 시작 ---")
     sql_select = f"""
-    SELECT 
-        id, 
-        rating, 
-        review_count, 
-        blog_count, 
+    SELECT
+        id,
+        rating,
+        review_count,
+        blog_count,
         hourly_visit
     FROM {RAW_TABLE};
     """

@@ -7,8 +7,6 @@ from datetime import datetime, timedelta, timezone
 import boto3
 import pandas as pd
 import requests
-from airflow import DAG
-from airflow.operators.python import PythonOperator
 
 # ChromeDriver 다운로드 Lock (동시 다운로드 방지)
 _driver_lock = threading.Lock()
@@ -93,28 +91,34 @@ def crawl_kakao_place(place_url):
                 idx[np.isnan(clean)], idx[~np.isnan(clean)], clean[~np.isnan(clean)]
             )
         img_values = clean.tolist()
-    except:
+    except Exception:
         img_values = [0] * 24
 
     # 별점
     try:
-        rating = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "span.num_star"))).text
-    except:
+        rating = wait.until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "span.num_star"))
+        ).text
+    except Exception:
         rating = 0
 
     # 후기 & 블로그 수
     review_cnt = 0
     blog_cnt = 0
     try:
-        titles = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "span.info_tit")))
-        counts = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "span.info_num")))
+        titles = wait.until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, "span.info_tit"))
+        )
+        counts = wait.until(
+            EC.presence_of_all_elements_located((By.CSS_SELECTOR, "span.info_num"))
+        )
         title_list = [t.text for t in titles]
         count_list = [c.text for c in counts]
         if "후기" in title_list:
             review_cnt = count_list[title_list.index("후기")]
         if "블로그" in title_list:
             blog_cnt = count_list[title_list.index("블로그")]
-    except:
+    except Exception:
         pass
 
 
@@ -133,7 +137,7 @@ def crawl_kakao_place(place_url):
             if src and src.startswith("http"):
                 img_url = src   # ✅ 첫 번째 이미지 발견 즉시 반환
                 break
-    except:
+    except Exception:
         pass
 
     driver.quit()
@@ -219,7 +223,7 @@ def run_all_tasks(**context):
 
     # 음식점만 (FD6)
     df = df[df["category_group_code"] == "FD6"]
-    
+
     # full_static_feature_pipeline 함수 내부에서 df 로드 직후 실행
     before_drop = len(df)
     print(f"전처리 전 데이터 수: {before_drop}")
@@ -232,7 +236,7 @@ def run_all_tasks(**context):
     print(f"✅ TASK 1 완료: 총 {after_drop}개 음식점 목록 수집 완료")
     print("=" * 60)
     print()
-    
+
     payload = {"text": (f"📌 *kakao_crawl_all_on_one.py*\n"
                         f"총 {before_drop}개 음식점 중 전처리 후 {after_drop} 목록 수집 완료*\n")}
     requests.post(
@@ -240,7 +244,7 @@ def run_all_tasks(**context):
         json=payload,
         timeout=10,
     )
-    
+
     # ========================================
     # TASK 2: 병렬 크롤링으로 상세 정보 수집
     # ========================================
@@ -263,7 +267,7 @@ def run_all_tasks(**context):
     tasks = []
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        for i, row in df.iterrows():
+        for _i, row in df.iterrows():
             tasks.append(executor.submit(process_row, row))
 
         completed = 0
@@ -292,11 +296,11 @@ def run_all_tasks(**context):
 
     final_df = pd.concat([df.reset_index(drop=True), pd.DataFrame(results)], axis=1)
     before_drop = len(final_df)
-    
+
     # id를 기준으로 중복 제거 (첫 번째 데이터만 남김)
     final_df = final_df.drop_duplicates(subset=['id'], keep='first')
     after_drop = len(final_df)
-    
+
     payload = {"text": (f"📌 *kakao_crawl_all_on_one.py*\n"
                         f"크롤링 {before_drop}개 음식점 목록 수집 완료\n"
                         f"전처리 후 {after_drop}개 음식점 목록 S3 적재 시작\n")}
@@ -305,8 +309,8 @@ def run_all_tasks(**context):
         json=payload,
         timeout=10,
     )
-    
-    
+
+
     print(f"✅ TASK 2 완료: 총 {len(final_df)}개 음식점 크롤링 완료")
     print("=" * 60)
     print(final_df.head())
@@ -355,7 +359,9 @@ def run_all_tasks(**context):
 # DAG 정의
 # =========================
 
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.sdk import DAG
 
 default_args = {
     "owner": "규영",
