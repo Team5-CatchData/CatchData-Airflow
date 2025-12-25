@@ -3,6 +3,11 @@ from datetime import datetime, timedelta, timezone
 import psycopg2
 import requests
 from airflow.models import Variable
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.standard.operators.trigger_dagrun import (
+    TriggerDagRunOperator,
+)
+from airflow.sdk import DAG
 
 REDSHIFT_HOST = Variable.get(
     "REDSHIFT_HOST",
@@ -87,10 +92,6 @@ def load_s3_to_redshift():
         cur.close()
         conn.close()
 
-
-from airflow.providers.standard.operators.python import PythonOperator
-from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
-from airflow.sdk import DAG
 
 default_args = {
     "owner": "규영",

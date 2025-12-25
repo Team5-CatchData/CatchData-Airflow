@@ -404,4 +404,3 @@ with DAG(
 
     # run_all 끝나면 extract_kakao_url DAG 실행됨
     # run_all >> trigger_load_redshift
-    run_all

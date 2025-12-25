@@ -117,4 +117,3 @@ with DAG(
     # )
 
     # load_task >> trigger_static_feature_dag
-    load_task

@@ -7,6 +7,11 @@ from datetime import datetime, timedelta, timezone
 import boto3
 import pandas as pd
 import requests
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.standard.operators.trigger_dagrun import (
+    TriggerDagRunOperator,
+)
+from airflow.sdk import DAG
 
 # ChromeDriver 다운로드 Lock (동시 다운로드 방지)
 _driver_lock = threading.Lock()
@@ -188,7 +193,7 @@ def run_all_tasks(**context):
             "page": page
         }
 
-        res = requests.get(url, params=params, headers=headers).json()
+        res = requests.get(url, params=params, headers=headers, timeout=10).json()
         docs = res.get("documents", [])
 
         if not docs:
@@ -206,7 +211,7 @@ def run_all_tasks(**context):
             "page": page
         }
 
-        res = requests.get(url, params=params, headers=headers).json()
+        res = requests.get(url, params=params, headers=headers, timeout=10).json()
         docs = res.get("documents", [])
 
         if not docs:
@@ -358,10 +363,6 @@ def run_all_tasks(**context):
 # =========================
 # DAG 정의
 # =========================
-
-from airflow.providers.standard.operators.python import PythonOperator
-from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
-from airflow.sdk import DAG
 
 default_args = {
     "owner": "규영",
