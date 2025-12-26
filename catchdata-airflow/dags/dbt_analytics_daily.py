@@ -28,5 +28,3 @@ with DAG(
         dbt run
         """,
     )
-
-    dbt_run
