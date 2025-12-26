@@ -126,10 +126,7 @@ Airflow DAG 모니터링 알림
 ### 데이터 파이프라인 흐름
 
 ```
-
-
 ### Airflow 아키텍처
-
 ```
 <img width="2000" height="1500" alt="데이터flowdiagram drawio의 사본 drawio (1)" src="https://github.com/user-attachments/assets/d9db8189-bf0c-48be-b99e-61ea72f4a952" />
 
