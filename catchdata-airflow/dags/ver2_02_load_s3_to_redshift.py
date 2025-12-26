@@ -29,7 +29,7 @@ def load_s3_to_redshift():
     COPY_SQL = f"""
     COPY raw_data.kakao_crawl_stg
     FROM 's3://team5-batch/raw_data/kakao/eating_house_{time_stamp}.csv'
-    REGION 'ap-southeast-2'
+    REGION 'ap-northeast-2'
     credentials 'aws_iam_role=arn:aws:iam::903836366474:role/redshift.read.s3'
     delimiter ','
     IGNOREHEADER 1

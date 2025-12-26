@@ -1,5 +1,6 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
+import pendulum
 import requests
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.standard.operators.python import PythonOperator
@@ -60,24 +61,36 @@ def monitor_dags():
     # =========================
     # Slack 메시지 구성
     # =========================
+    KST = pendulum.timezone("Asia/Seoul")
+
+    def to_kst(dt):
+        """
+        UTC datetime → KST datetime 문자열
+        """
+        if dt is None:
+            return "-"
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S")
+
     message = "*🚨 Airflow DAG 모니터링 알림*\n\n"
 
     if failed_dags:
         message += "❌ *실패한 DAG (최근 1시간)*\n"
         for dag_id, logical_date in failed_dags:
-            message += f"• `{dag_id}` @ {logical_date}\n"
+            message += f"• `{dag_id}` @ {to_kst(logical_date)}\n"
         message += "\n"
 
     if failed_tasks:
         message += "🧩 *실패한 Task (최근 1시간)*\n"
         for dag_id, task_id, start_date in failed_tasks:
-            message += f"• `{dag_id}.{task_id}` @ {start_date}\n"
+            message += f"• `{dag_id}.{task_id}` @ {to_kst(start_date)}\n"
         message += "\n"
 
     if long_running_dags:
         message += "🕒 *30분 이상 실행 중인 DAG*\n"
         for dag_id, start_date in long_running_dags:
-            message += f"• `{dag_id}` (시작: {start_date})\n"
+            message += f"• `{dag_id}` (시작: {to_kst(start_date)})\n"
         message += "\n"
 
     # =========================
