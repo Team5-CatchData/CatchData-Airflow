@@ -1,7 +1,8 @@
-from airflow import DAG
-from airflow.operators.bash import BashOperator
 from datetime import datetime, timedelta
+
 import pendulum
+from airflow.providers.standard.operators.bash import BashOperator
+from airflow.sdk import DAG
 
 KST = pendulum.timezone("Asia/Seoul")
 

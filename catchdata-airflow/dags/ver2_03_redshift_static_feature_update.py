@@ -1,19 +1,19 @@
+import io
 import json
 import math
-import io
-import joblib
-import boto3
-import pandas as pd
-import requests
 from datetime import datetime, timedelta
 
-from airflow import DAG
-from airflow.operators.python import PythonOperator
+import boto3
+import joblib
+import pandas as pd
+import requests
 from airflow.providers.common.sql.operators.sql import (
     SQLExecuteQueryOperator,  # 테이블 생성용
 )
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from sqlalchemy import Numeric, String, TIMESTAMP
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.sdk import DAG
+from sqlalchemy import Numeric, String
 
 # =========================
 # 기본 설정
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS {SCHEMA_NAME}.{FINAL_TABLE_NAME} (
     calculated_at TIMESTAMP
 )
 -- id를 기준으로 데이터 분산 및 정렬하여 조인 및 쿼리 성능 최적화
-DISTKEY(id) 
+DISTKEY(id)
 SORTKEY(calculated_at);
 """
 
@@ -60,7 +60,7 @@ SORTKEY(calculated_at);
 # 💡 보조 함수: S3에서 객체 로드
 # =========================
 def load_from_s3(bucket, key):
-    # Airflow Connections에 설정된 AWS 자격증명을 사용하는 것이 좋으나, 
+    # Airflow Connections에 설정된 AWS 자격증명을 사용하는 것이 좋으나,
     # 여기서는 직접 입력을 가정한 기본 구조로 작성합니다.
     s3 = boto3.client(
         "s3"
@@ -84,7 +84,7 @@ def load_from_s3(bucket, key):
 # =========================
 def full_static_feature_pipeline():
     """
-    hourly_visit JSON을 24개 컬럼으로 변환하고, 
+    hourly_visit JSON을 24개 컬럼으로 변환하고,
     Redshift 테이블 이름 교체를 통해 원자적으로 갱신합니다.
     """
 
@@ -95,12 +95,12 @@ def full_static_feature_pipeline():
     # 1. Redshift에서 원본 데이터 로드
     print("--- 1. Redshift에서 원본 데이터 로드 시작 ---")
     sql_select = f"""
-    SELECT 
-        id, 
+    SELECT
+        id,
         category_name,
-        rating, 
-        review_count, 
-        blog_count, 
+        rating,
+        review_count,
+        blog_count,
         hourly_visit
     FROM {RAW_TABLE};
     """
@@ -125,7 +125,7 @@ def full_static_feature_pipeline():
 
     # --- quality_score 계산 ---
     df['quality_score'] = df['base_population'] * df['rating'].astype(float, errors='ignore')
-    
+
 
     # --- hourly_visit JSON 파싱 및 24개 컬럼 분리 ---
     def safe_loads(json_str):
@@ -145,48 +145,48 @@ def full_static_feature_pipeline():
     df[TIME_COLUMNS] = pd.DataFrame(df['hourly_list'].to_list(), index=df.index).astype('int16')
     df.drop(columns=['hourly_list', 'hourly_visit'], inplace=True)
 
-    # 클러스터링 
+    # 클러스터링
     ## --- category 추출 ---
     df['category'] = df['category_name'].str.split('>').str[1].str.strip()
-    
+
     ## --- 시간대별 방문 인원 나누기 ---
     df['breakfast'] = df[['time6','time7','time8','time9','time10']].sum(axis=1)
     df['lunch'] = df[['time11','time12','time13','time14','time15']].sum(axis=1)
     df['dinner'] = df[['time17','time18','time19','time20','time21']].sum(axis=1)
     df['late_night'] = df[['time21','time22','time23','time0','time1']].sum(axis=1)
     df['over_night'] = df[['time2','time3','time4','time5']].sum(axis=1)
-    
+
     ## 원-핫 인코딩
-    clustering_df = df[['id', 'category', 'base_population', 'quality_score', 
+    clustering_df = df[['id', 'category', 'base_population', 'quality_score',
                         'breakfast', 'lunch', 'dinner', 'late_night', 'over_night']]
     df_dummy = pd.get_dummies(clustering_df, columns=['category'], dtype=int)
-    
+
     # 4. 모델 로드 및 예측
     print("--- ML 모델 로드 및 예측 시작 ---")
     model = load_from_s3(BUCKET_NAME, "models/kmeans_model_v1.pkl")
     scaler = load_from_s3(BUCKET_NAME, "models/scaler_v1.pkl")
-    
+
     # [중요] 학습 시 사용했던 컬럼 리스트 로드 (컬럼 순서/개수 일치 필수)
     # 모델 저장 시 함께 저장했던 컬럼 리스트를 불러온다고 가정
     train_cols = load_from_s3(BUCKET_NAME, "models/train_columns.pkl")
-    
+
     # 현재 데이터에 없는 카테고리 컬럼은 0으로 채우고, 학습 시 없던 컬럼은 제거
     for col in train_cols:
         if col not in df_dummy.columns:
             df_dummy[col] = 0
-    
+
     # 학습 시와 동일한 컬럼 순서로 정렬 (id 제외)
     X = df_dummy[train_cols].drop(columns=['id'], errors='ignore')
-    
+
     # 스케일링 및 예측
     X_scaled = scaler.transform(X)
     df['cluster'] = model.predict(X_scaled)
 
     # 5. 최종 데이터 정리
-    final_df = df[['id', 'category', 'base_population', 'quality_score', 'rating', 
+    final_df = df[['id', 'category', 'base_population', 'quality_score', 'rating',
                    *TIME_COLUMNS, 'cluster']].copy()
     final_df['calculated_at'] = datetime.now()
-    
+
 
     print("✅ 파생 변수 및 시간대 컬럼 계산 완료")
 

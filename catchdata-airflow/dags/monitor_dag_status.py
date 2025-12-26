@@ -1,11 +1,10 @@
-from airflow import DAG
-from airflow.providers.standard.operators.python import PythonOperator
-from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.models import Variable
-from datetime import datetime, timedelta
-from datetime import timezone
+from datetime import datetime, timedelta, timezone
+
 import pendulum
 import requests
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.sdk import DAG, Variable
 
 # =========================
 # 설정값
@@ -24,33 +23,33 @@ def monitor_dags():
     cur = conn.cursor()
 
     # 1️⃣ 실패한 DAG (dag_run → logical_date)
-    cur.execute(f"""
+    cur.execute("""
         SELECT dag_id, logical_date
         FROM dag_run
         WHERE state = 'failed'
-        AND logical_date >= NOW() - INTERVAL '{CHECK_INTERVAL_MIN} minutes'
+        AND logical_date >= NOW() - INTERVAL %s
         ORDER BY logical_date DESC
-    """)
+    """, (f"{CHECK_INTERVAL_MIN} minutes",))
     failed_dags = cur.fetchall()
 
     # 2️⃣ 실패한 Task (task_instance → start_date)
-    cur.execute(f"""
+    cur.execute("""
         SELECT dag_id, task_id, start_date
         FROM task_instance
         WHERE state = 'failed'
-        AND start_date >= NOW() - INTERVAL '{CHECK_INTERVAL_MIN} minutes'
+        AND start_date >= NOW() - INTERVAL %s
         ORDER BY start_date DESC
-    """)
+    """, (f"{CHECK_INTERVAL_MIN} minutes",))
     failed_tasks = cur.fetchall()
 
     # 3️⃣ 장시간 running DAG (dag_run → start_date)
-    cur.execute(f"""
+    cur.execute("""
         SELECT dag_id, start_date
         FROM dag_run
         WHERE state = 'running'
-        AND start_date <= NOW() - INTERVAL '{RUNNING_THRESHOLD_MIN} minutes'
+        AND start_date <= NOW() - INTERVAL %s
         ORDER BY start_date
-    """)
+    """, (f"{RUNNING_THRESHOLD_MIN} minutes",))
     long_running_dags = cur.fetchall()
 
     cur.close()

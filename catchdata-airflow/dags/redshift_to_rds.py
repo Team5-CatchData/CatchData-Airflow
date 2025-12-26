@@ -1,39 +1,39 @@
 import logging
 from datetime import datetime, timedelta
 
-from airflow import DAG
-from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.sdk import DAG
 
 
 def transfer_redshift_to_rds(**context):
     """Redshift → RDS 전송 (UPSERT 방식)"""
-    
+
     redshift_hook = PostgresHook(postgres_conn_id="redshift_conn")
     rds_hook = PostgresHook(postgres_conn_id="rds_conn")
-    
+
     # 1. Redshift에서 데이터 추출
     logging.info("1. Redshift 데이터 추출")
     sql = """
-        SELECT 
-            id, name, region, city, category, rating, 
+        SELECT
+            id, name, region, city, category, rating,
             phone, x, y, waiting, image_url, address,
             rec_quality, rec_balanced, rec_convenience, cluster
         FROM analytics.map_search
         ORDER BY id
     """
-    
+
     records = redshift_hook.get_records(sql)
     record_count = len(records)
     logging.info(f"✓ {record_count:,}개 추출 완료")
-    
+
     if not records:
         logging.warning("추출된 데이터가 없습니다")
         return
-    
+
     # 2. RDS에 UPSERT
     logging.info(f"2. RDS UPSERT 시작 ({record_count:,}개)")
-    
+
     conn = rds_hook.get_conn()
     cursor = conn.cursor()
     # postgresql은 대소문자 구별 못함
@@ -62,10 +62,10 @@ def transfer_redshift_to_rds(**context):
                 rec_convenience = EXCLUDED.rec_convenience,
                 cluster=EXCLUDED.cluster
         """, records)
-        
+
         conn.commit()
         logging.info(f"✓ {record_count:,}개 UPSERT 완료!")
-        
+
     except Exception as e:
         conn.rollback()
         logging.error(f"✗ UPSERT 실패: {e}")
@@ -92,7 +92,7 @@ with DAG(
     catchup=False,
     tags=['redshift', 'rds', 'upsert'],
 ) as dag:
-    
+
     transfer_task = PythonOperator(
         task_id='transfer_data',
         python_callable=transfer_redshift_to_rds,
@@ -109,16 +109,16 @@ with DAG(
 
 # def transfer_redshift_to_rds(**context):
 #     """Redshift → RDS 전송 (UPSERT 방식)"""
-    
+
 #     redshift_hook = PostgresHook(postgres_conn_id="redshift_conn")
 #     rds_hook = PostgresHook(postgres_conn_id="rds_conn")
-    
+
 #     # 1. Redshift에서 데이터 추출
 #     logging.info("1. Redshift 데이터 추출")
-    
+
 #     # Redshift 컬럼 순서에 맞춰서 SELECT
 #     sql = """
-#         SELECT 
+#         SELECT
 #             id,                 -- 1
 #             name,               -- 2
 #             region,             -- 3
@@ -137,27 +137,27 @@ with DAG(
 #         ORDER BY id
 #         LIMIT 10
 #     """
-    
+
 #     records = redshift_hook.get_records(sql)
 #     record_count = len(records)
 #     logging.info(f"✓ {record_count:,}개 추출 완료")
-    
+
 #     # 디버깅
 #     if records:
 #         first = records[0]
 #         logging.info(f"🔍 첫 레코드 길이: {len(first)}개")
 #         logging.info(f"🔍 첫 레코드: {first}")
-    
+
 #     if not records:
 #         logging.warning("추출된 데이터가 없습니다")
 #         return
-    
+
 #     # 2. RDS에 UPSERT
 #     logging.info(f"2. RDS UPSERT 시작 ({record_count:,}개)")
-    
+
 #     conn = rds_hook.get_conn()
 #     cursor = conn.cursor()
-    
+
 #     try:
 #         # RDS 컬럼 순서에 맞춰서 INSERT (14개)
 #         cursor.executemany("""
@@ -171,7 +171,7 @@ with DAG(
 #                 phone,
 #                 x,
 #                 y,
-#                 waiting,            
+#                 waiting,
 #                 image_url,
 #                 address,
 #                 rec_quality,
@@ -195,10 +195,10 @@ with DAG(
 #                 rec_balanced = EXCLUDED.rec_balanced,
 #                 rec_convenience = EXCLUDED.rec_convenience
 #         """, records)
-        
+
 #         conn.commit()
 #         logging.info(f"✓ {record_count:,}개 UPSERT 완료!")
-        
+
 #     except Exception as e:
 #         conn.rollback()
 #         logging.error(f"✗ UPSERT 실패: {e}")
@@ -226,7 +226,7 @@ with DAG(
 #     catchup=False,
 #     tags=['redshift', 'rds', 'upsert'],
 # ) as dag:
-    
+
 #     transfer_task = PythonOperator(
 #         task_id='transfer_data',
 #         python_callable=transfer_redshift_to_rds,
