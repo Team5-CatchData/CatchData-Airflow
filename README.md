@@ -273,8 +273,7 @@ CatchData-Airflow/
 ### Airflow UI 주요 화면
 1. **DAGs 뷰**: 전체 DAG 상태 한눈에 확인
 2. **Graph 뷰**: Task 간 의존성 시각화
-3. **Gantt 차트**: Task 실행 시간 분석
-4. **Logs**: 각 Task 실행 로그 확인
+3. **Logs**: 각 Task 실행 로그 확인
 
 ## 기여 가이드
 
