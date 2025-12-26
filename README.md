@@ -8,7 +8,6 @@
 - [시스템 아키텍처](#-시스템-아키텍처)
 - [설치 및 실행](#-설치-및-실행)
 - [프로젝트 구조](#-프로젝트-구조)
-- [DAG 구성](#-dag-구성)
 
 ## 프로젝트 소개
 
@@ -32,7 +31,6 @@ CatchData-Airflow는 **스마트 맛집 추천 플랫폼**을 위한 데이터 �
 
 **수집 데이터:**
 - 식당명, 주소, 전화번호, 카테고리, 평점
-- 실시간 대기 팀 수 및 방문자 수
 - 좌표 (위도/경도)
 
 ### 2. S3 → Redshift 데이터 적재
@@ -133,65 +131,12 @@ Airflow DAG 모니터링 알림
 ### Airflow 아키텍처
 
 ```
-┌──────────────────────────────────────────────────────┐
-│                 Docker Compose                       │
-├──────────────────────────────────────────────────────┤
-│                                                      │
-│  ┌──────────────┐  ┌──────────────┐  ┌───────────┐ │
-│  │   Scheduler  │  │   Webserver  │  │  Worker   │ │
-│  │              │  │   (UI:8080)  │  │  (Celery) │ │
-│  └──────┬───────┘  └──────────────┘  └─────┬─────┘ │
-│         │                                   │       │
-│         └────────────┬──────────────────────┘       │
-│                      ▼                              │
-│         ┌────────────────────────┐                  │
-│         │  PostgreSQL (Metadata) │                  │
-│         └────────────────────────┘                  │
-│                      ▼                              │
-│         ┌────────────────────────┐                  │
-│         │   Redis (Message Q)    │                  │
-│         └────────────────────────┘                  │
-│                                                      │
-│  Volumes:                                           │
-│  - ./dags       → DAG 파일                          │
-│  - ./logs       → 실행 로그                         │
-│  - ./config     → airflow.cfg                       │
-│  - ./plugins    → 커스텀 플러그인                    │
-└──────────────────────────────────────────────────────┘
-```
+<img width="2000" height="1500" alt="데이터flowdiagram drawio의 사본 drawio (1)" src="https://github.com/user-attachments/assets/d9db8189-bf0c-48be-b99e-61ea72f4a952" />
 
-### CI/CD 파이프라인
 
-```
-┌─────────────────┐
-│  GitHub Push    │
-│   (main 브랜치)  │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────────────────────┐
-│    GitHub Actions               │
-├─────────────────────────────────┤
-│  1. Ruff 코드 검사              │
-│     - Linting (F,E,W,I,B,S)    │
-│     - 코드 품질 검증            │
-│                                 │
-│  2. CD (main 브랜치만)          │
-│     - SSH Bastion Host         │
-│     - EC2 git pull             │
-└────────┬────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────┐
-│   EC2 (Private Subnet)          │
-│   Bastion Host 경유             │
-├─────────────────────────────────┤
-│  cd /home/ubuntu/CatchData-     │
-│     Airflow                     │
-│  git pull origin main           │
-│  → Airflow 자동 DAG 갱신        │
-└─────────────────────────────────┘
-```
+### AWS 아키텍쳐
+<img width="2000" height="1600" alt="aws아키텍쳐 drawio의 사본 drawio" src="https://github.com/user-attachments/assets/1bdf068a-c3c9-4868-9e11-71915885422d" />
+
 
 ## 설치 및 실행
 
@@ -238,15 +183,10 @@ SLACK_WEBHOOK_URL=
 
 install-airflow-dbt.md 참고
 
-### 5. Airflow 웹 UI 접속
-브라우저에서 접속(해당 프로젝트는 bastion을 통하여 private subnet에서 실행):
-- URL: `http://localhost:8080`
-- 기본 계정: `airflow / airflow`
-
-### 6. Airflow Connection 설정
+### 4. Airflow Connection 설정
 Airflow UI → Admin → Connections에서 redshift와 RDS 커넥션 추가
 
-### 7. Airflow Variables 설정
+### 5. Airflow Variables 설정
 Admin → Variables에서 추가:
 ```json
 {
@@ -314,176 +254,6 @@ CatchData-Airflow/
 └── README.md                    # 프로젝트 문서
 ```
 
-## DAG 구성
-
-### 1. ver2_01_kakao_crawl_all_in_one
-**스케줄**: 매일 00:00 KST
-**실행 시간**: 약 30-60분
-
-```python
-DAG 구조:
-start
-  → crawl_and_upload_to_s3  # 멀티프로세스 크롤링 + S3 업로드
-  → slack_success           # 성공 알림
-  → end
-```
-
-**주요 작업:**
-1. 카카오맵 API로 식당 기본 정보 수집
-2. Selenium으로 대기 정보 크롤링
-3. OCR로 대기 인원 이미지 파싱
-4. CSV 생성 및 S3 업로드
-
-### 2. ver2_02_load_s3_to_redshift
-**스케줄**: 매일 01:00 KST (ver2_01 이후)
-**실행 시간**: 약 5-10분
-
-```python
-DAG 구조:
-start
-  → drop_temp_table
-  → create_temp_table
-  → load_from_s3           # COPY 명령
-  → merge_to_main          # 중복 제거 병합
-  → drop_temp_table
-  → end
-```
-
-### 3. ver2_03_redshift_static_feature_update
-**스케줄**: 매일 02:00 KST
-**실행 시간**: 약 10-20분
-
-```python
-DAG 구조:
-start
-  → calculate_features     # 시간대별 집계
-  → update_quality_score   # 품질 점수 계산
-  → clustering             # 유사 맛집 그룹핑
-  → end
-```
-
-**생성 피처:**
-- `time0` ~ `time23`: 시간대별 방문자 수
-- `quality_score`: 평점, 리뷰 수, 카테고리 반영
-- `cluster`: K-Means 클러스터 ID
-- `base_population`: 정규화된 기본 방문자 수
-
-### 4. ver2_04_calculate_realtime_scores
-**스케줄**: 매시간 정각 (Hourly)
-**실행 시간**: 약 2-5분
-
-```python
-DAG 구조:
-start
-  → create_realtime_table
-  → calculate_scores       # Python 연산
-  → insert_scores          # Redshift 삽입
-  → end
-```
-
-**계산 로직:**
-```python
-# 현재 시각 기준 방문 패턴 반영
-now_hour = datetime.now().hour
-time_column = f"time{now_hour}"
-
-# 3가지 추천 전략
-rec_quality = 0.6*quality + 0.2*rating + 0.2*(1-wait)
-rec_balanced = 0.4*quality + 0.35*rating + 0.25*(1-wait)
-rec_convenience = 0.3*quality + 0.2*rating + 0.5*(1-wait)
-```
-
-### 5. ver2_05_map_search
-**스케줄**: 매일 03:00 KST
-**실행 시간**: 약 5분
-
-```python
-DAG 구조:
-start
-  → aggregate_search_logs  # 사용자 검색 통계
-  → update_dashboard_data  # 대시보드 데이터 갱신
-  → end
-```
-
-### 6. monitor_dag_status
-**스케줄**: 매시간 정각 (Hourly)
-**실행 시간**: 약 1분
-
-```python
-DAG 구조:
-start
-  → check_failed_dags      # 실패한 DAG 감지
-  → check_long_running     # 30분+ running DAG 감지
-  → send_slack_alert       # Slack 알림
-  → end
-```
-
-### 7. dbt_analytics_daily
-**스케줄**: 매일 04:00 KST
-**실행 시간**: 약 10분
-
-```python
-DAG 구조:
-start
-  → dbt_run                # DBT 모델 실행
-  → dbt_test               # 데이터 품질 검증
-  → end
-```
-
-## 주요 테이블 스키마
-
-### raw_data.eating_house (원본 데이터)
-```sql
-CREATE TABLE raw_data.eating_house (
-    id BIGINT PRIMARY KEY,
-    place_name VARCHAR(255),
-    address_name VARCHAR(500),
-    road_address_name VARCHAR(500),
-    phone VARCHAR(50),
-    category_name VARCHAR(100),
-    x DECIMAL(20, 16),  -- 경도
-    y DECIMAL(20, 16),  -- 위도
-    place_url VARCHAR(500),
-    rating DECIMAL(3, 2),
-    review_count INTEGER,
-    waiting_teams INTEGER,
-    current_visitors INTEGER,
-    created_at TIMESTAMP DEFAULT GETDATE()
-);
-```
-
-### analytics.derived_features_base (정적 피처)
-```sql
-CREATE TABLE analytics.derived_features_base (
-    id BIGINT PRIMARY KEY,
-    base_population NUMERIC(18, 4),
-    quality_score NUMERIC(18, 4),
-    rating NUMERIC(3, 2),
-    time0 NUMERIC(18, 4),
-    time1 NUMERIC(18, 4),
-    ...
-    time23 NUMERIC(18, 4),
-    cluster INTEGER,
-    category_name VARCHAR(100),
-    updated_at TIMESTAMP DEFAULT GETDATE()
-);
-```
-
-### analytics.realtime_waiting (실시간 추천)
-```sql
-CREATE TABLE analytics.realtime_waiting (
-    id BIGINT,
-    current_visitors NUMERIC(18, 4),
-    waiting INTEGER,
-    rec_quality NUMERIC(18, 6),
-    rec_balanced NUMERIC(18, 6),
-    rec_convenience NUMERIC(18, 6),
-    calculation_timestamp TIMESTAMP
-)
-DISTKEY(id)
-SORTKEY(calculation_timestamp);
-```
-
 ## 성능 최적화
 
 ### 크롤링 최적화
@@ -537,6 +307,5 @@ ruff check . --fix
 ## 참고 자료
 
 - [Apache Airflow 공식 문서](https://airflow.apache.org/docs/)
-- [Redshift COPY 명령](https://docs.aws.amazon.com/redshift/latest/dg/r_COPY.html)
 - [Selenium Python 가이드](https://selenium-python.readthedocs.io/)
 - [DBT 문서](https://docs.getdbt.com/)
