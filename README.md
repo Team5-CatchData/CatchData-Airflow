@@ -132,7 +132,8 @@ Airflow DAG 모니터링 알림
 
 
 ### AWS 아키텍쳐
-<img width="2000" height="1600" alt="aws아키텍쳐 drawio의 사본 drawio" src="https://github.com/user-attachments/assets/1bdf068a-c3c9-4868-9e11-71915885422d" />
+<img width="2000" height="1600" alt="aws아키텍쳐 drawio의 사본 drawio (2)" src="https://github.com/user-attachments/assets/233227a9-c50d-4a46-a27f-7d25e603612b" />
+
 
 
 ## 설치 및 실행
