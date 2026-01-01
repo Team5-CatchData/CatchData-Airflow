@@ -1,7 +1,4 @@
-{{ config(
-    materialized='table',
-    schema='superset'
-) }}
+{{ config(enabled=false) }}
 
 SELECT
     base.id,

@@ -1,6 +1,8 @@
-from airflow import DAG
-from airflow.operators.python import PythonOperator
 from datetime import datetime
+
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.sdk import DAG
+
 
 def always_fail():
     raise Exception("❌ 의도적으로 실패시키는 테스트 DAG")
