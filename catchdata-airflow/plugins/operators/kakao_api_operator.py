@@ -71,8 +71,7 @@ class KakaoAPIOperator(BaseOperator):
         super().__init__(**kwargs)
         self.kakao_api_key = kakao_api_key
         self.districts = districts
-        self.categories = categories or ['한식', '일식', '중식', '양식', '술집', '고기집',
-                                          '치킨', '분식', '샤브샤브', '간식', '뷔페']
+        self.categories = categories 
         self.page_size = min(page_size, 15)  # Kakao API 최대 15
         self.max_pages = max_pages
         self.slack_webhook_url = slack_webhook_url
