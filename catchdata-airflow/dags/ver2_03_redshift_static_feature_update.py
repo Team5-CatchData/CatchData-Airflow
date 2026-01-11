@@ -15,6 +15,11 @@ from airflow.providers.standard.operators.python import PythonOperator
 from airflow.sdk import DAG
 from sqlalchemy import Numeric, String
 
+# SQL을 실행하는 오퍼레이터
+# S3 hook
+# redshift hook도 필요
+# 
+
 # =========================
 # 기본 설정
 # =========================
