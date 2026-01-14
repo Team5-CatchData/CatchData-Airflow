@@ -1,0 +1,82 @@
+# ============================================
+# Airflow Worker Server (EC2)
+# Celery Workers Only
+# ============================================
+#
+# 중요: CORE_SERVER_IP를 실제 Core 서버의 Private IP로 변경하세요!
+#
+# 사용법:
+#   1. 이 파일을 Worker EC2에 배포
+#   2. CORE_SERVER_IP 수정
+#   3. docker compose -f docker-compose-worker.yaml up -d
+#   4. Worker 추가: docker compose -f docker-compose-worker.yaml up -d --scale airflow-worker=3
+
+version: '3.8'
+
+x-worker-common:
+  &worker-common
+  image: team5-airflow:custom
+  env_file:
+    - ${ENV_FILE_PATH:-.env}
+  environment:
+    # ⚠️ CORE_SERVER_IP를 실제 Core EC2의 Private IP로 변경하세요!
+    # 예: 10.0.1.100
+    CORE_SERVER_IP: "${CORE_SERVER_IP:-10.0.1.100}"
+
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+
+    # Core 서버의 PostgreSQL 연결
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@${CORE_SERVER_IP:-10.0.1.100}:5432/airflow
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@${CORE_SERVER_IP:-10.0.1.100}:5432/airflow
+
+    # Core 서버의 Redis 연결
+    AIRFLOW__CELERY__BROKER_URL: redis://:@${CORE_SERVER_IP:-10.0.1.100}:6379/0
+
+    # Worker 설정
+    DUMB_INIT_SETSID: "0"
+
+    # 기타 설정
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
+
+  volumes:
+    # DAG 파일은 필수 (Core와 동기화 필요)
+    - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+
+    # 로그 (선택사항 - 로컬에 저장)
+    - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+
+    # 플러그인 (선택사항)
+    - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+
+    # DBT 파일 (DAG에서 사용 시 필수)
+    - ${AIRFLOW_PROJ_DIR:-.}/dbt:/opt/airflow/dbt
+
+  user: "${AIRFLOW_UID:-50000}:0"
+  restart: always
+
+services:
+  # Celery Worker (스케일 가능)
+  airflow-worker:
+    <<: *worker-common
+    # container_name을 지정하지 않음 (스케일링 가능)
+    command: celery worker --concurrency=4
+
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+    # 리소스 제한 (선택사항)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G

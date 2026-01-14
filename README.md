@@ -534,9 +534,63 @@ ruff check . --select F,E,W,I,B,S --ignore E501,S608,S110
 ruff check . --fix
 ```
 
+## Worker 스케일 아웃
+
+CatchData-Airflow는 CeleryExecutor를 사용하여 Worker를 수평 확장할 수 있습니다.
+
+### 로컬 테스트 (Docker Compose)
+
+```bash
+# Worker 3개로 시작
+docker compose -f docker-compose-scalable.yaml up -d --scale airflow-worker=3
+
+# Worker 5개로 증설
+docker compose -f docker-compose-scalable.yaml up -d --scale airflow-worker=5
+
+# Worker 상태 확인
+docker ps | grep airflow-worker
+```
+
+### 아키텍처
+
+```
+Core Server          Worker Servers
+┌──────────┐         ┌──────────┐
+│Scheduler │         │Worker 1  │
+│Webserver │◄────────┤Worker 2  │
+│PostgreSQL│   Redis │Worker 3  │
+│  Redis   │         └──────────┘
+└──────────┘
+```
+
+### 모니터링
+
+**Flower Web UI** (Celery 모니터링):
+```bash
+# Flower 시작
+docker compose -f docker-compose-scalable.yaml up -d flower
+
+# 브라우저 접속
+# http://localhost:5555
+```
+
+**Airflow UI**:
+- Admin → Celery → Workers에서 연결된 Worker 수 확인
+
+### 상세 가이드
+
+Worker 스케일 아웃에 대한 상세한 설정 방법은 [SCALING-GUIDE.md](SCALING-GUIDE.md)를 참고하세요:
+- 로컬 Docker Compose 스케일링
+- 프로덕션 환경 (별도 EC2 인스턴스)
+- AWS 보안 그룹 설정
+- 트러블슈팅
+- 성능 튜닝
+
 ## 참고 자료
 
 - [Apache Airflow 공식 문서](https://airflow.apache.org/docs/)
+- [Airflow CeleryExecutor](https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/executor/celery.html)
 - [Redshift COPY 명령](https://docs.aws.amazon.com/redshift/latest/dg/r_COPY.html)
 - [Selenium Python 가이드](https://selenium-python.readthedocs.io/)
 - [DBT 문서](https://docs.getdbt.com/)
+- [Worker 스케일 아웃 가이드](SCALING-GUIDE.md)
